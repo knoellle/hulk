@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use communication::client::CyclerOutput;
-use eframe::egui::{Label, ScrollArea, Sense, Widget};
+use eframe::egui::{self, Label, Response, ScrollArea, Sense, Ui, Widget};
 use log::error;
 use serde_json::{json, Value};
 
@@ -48,7 +48,7 @@ impl Panel for TextPanel {
 }
 
 impl Widget for &mut TextPanel {
-    fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+    fn ui(self, ui: &mut Ui) -> Response {
         let edit_response = ui.add(CompletionEdit::outputs(&mut self.output, self.nao.as_ref()));
         if edit_response.changed() {
             match CyclerOutput::from_str(&self.output) {

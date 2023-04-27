@@ -28,7 +28,7 @@ use nao::Nao;
 use panel::Panel;
 use panels::{
     BehaviorSimulatorPanel, ImagePanel, ImageSegmentsPanel, LookAtPanel, ManualCalibrationPanel,
-    MapPanel, ParameterPanel, PlotPanel, SpectrumPanel, RemotePanel, TextPanel, VisionTunerPanel,
+    MapPanel, ParameterPanel, PlotPanel, RemotePanel, SpectrumPanel, TextPanel, VisionTunerPanel,
 };
 use serde_json::{from_str, to_string, Value};
 use tokio::sync::mpsc;
@@ -334,7 +334,7 @@ impl egui_dock::TabViewer for TabViewer {
         tab.panel.ui(ui);
     }
 
-    fn title(&mut self, tab: &mut Self::Tab) -> eframe::egui::WidgetText {
+    fn title(&mut self, tab: &mut Self::Tab) -> WidgetText {
         format!("{}", tab.panel).into()
     }
 

@@ -144,7 +144,7 @@ impl Widget for CompletionEdit<'_> {
                                 % (completion_text_items.len() as i64),
                         );
                     } else if input.consume_key(Modifiers::NONE, Key::ArrowUp)
-                        || input.consume_key(eframe::egui::Modifiers::SHIFT, Key::Tab)
+                        || input.consume_key(Modifiers::SHIFT, Key::Tab)
                     {
                         state.selected_item = Some(
                             (state

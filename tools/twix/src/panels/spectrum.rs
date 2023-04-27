@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use eframe::egui::Widget;
+use communication::client::CyclerOutput;
+use eframe::egui::{Response, Ui, Widget};
 use serde_json::Value;
 
 use crate::{nao::Nao, panel::Panel};
@@ -8,7 +9,7 @@ use crate::{nao::Nao, panel::Panel};
 pub struct SpectrumPanel {}
 
 impl Widget for &mut SpectrumPanel {
-    fn ui(self, _ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+    fn ui(self, _ui: &mut Ui) -> Response {
         todo!()
     }
 }

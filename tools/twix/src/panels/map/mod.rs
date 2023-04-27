@@ -95,7 +95,7 @@ impl Panel for MapPanel {
 }
 
 impl Widget for &mut MapPanel {
-    fn ui(self, ui: &mut Ui) -> eframe::egui::Response {
+    fn ui(self, ui: &mut Ui) -> Response {
         ui.menu_button("Overlays", |ui| {
             self.field.checkbox(ui);
             self.image_segments.checkbox(ui);
