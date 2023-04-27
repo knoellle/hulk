@@ -43,6 +43,7 @@ impl FromStr for CyclerOutput {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Cycler {
+    Audio,
     Control,
     VisionTop,
     VisionBottom,
@@ -52,6 +53,7 @@ pub enum Cycler {
 impl Display for Cycler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            Cycler::Audio => f.write_str("Audio"),
             Cycler::Control => f.write_str("Control"),
             Cycler::VisionTop => f.write_str("VisionTop"),
             Cycler::VisionBottom => f.write_str("VisionBottom"),
@@ -65,6 +67,7 @@ impl FromStr for Cycler {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(match string {
+            "Audio" => Cycler::Audio,
             "Control" => Cycler::Control,
             "VisionTop" => Cycler::VisionTop,
             "VisionBottom" => Cycler::VisionBottom,
