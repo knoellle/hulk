@@ -28,7 +28,7 @@ use nao::Nao;
 use panel::Panel;
 use panels::{
     BehaviorSimulatorPanel, ImagePanel, ImageSegmentsPanel, LookAtPanel, ManualCalibrationPanel,
-    MapPanel, ParameterPanel, PlotPanel, RemotePanel, TextPanel, VisionTunerPanel,
+    MapPanel, ParameterPanel, PlotPanel, SpectrumPanel, RemotePanel, TextPanel, VisionTunerPanel,
 };
 use serde_json::{from_str, to_string, Value};
 use tokio::sync::mpsc;
@@ -82,9 +82,11 @@ impl_selectable_panel!(
     ParameterPanel,
     PlotPanel,
     RemotePanel,
+    SpectrumPanel,
     TextPanel,
     VisionTunerPanel
 );
+
 struct TwixApp {
     nao: Arc<Nao>,
     connection_intent: bool,
