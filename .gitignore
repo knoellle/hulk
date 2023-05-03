@@ -23,7 +23,7 @@ settings.json
 .envrc
 default.nix
 
-target/
+target
 
 .nao_cargo_home
 
