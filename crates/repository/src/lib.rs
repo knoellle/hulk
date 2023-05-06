@@ -312,8 +312,9 @@ impl Repository {
             .wrap_err("failed to link etc directory")?;
 
         symlink(
-            self.root
-                .join(format!("target/x86_64-aldebaran-linux-gnu/{profile}/nao")),
+            self.root.join(format!(
+                "target/x86_64-aldebaran-linux-gnu/{profile}/hulk_nao"
+            )),
             hulk_directory.join("bin/hulk"),
         )
         .await
