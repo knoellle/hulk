@@ -104,7 +104,7 @@ fn generate_cycler_constructors(cyclers: &Cyclers) -> TokenStream {
         let instance_name_snake_case = instance.name.to_case(Case::Snake);
         let cycler_database_changed_identifier = format_ident!("{instance_name_snake_case}_changed");
         let cycler_variable_identifier = format_ident!("{instance_name_snake_case}_cycler");
-        let cycler_module_name_identifier = format_ident!("{}", cycler.module);
+        let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
         let cycler_instance_name = &instance.name;
         let cycler_instance_name_identifier = format_ident!("{cycler_instance_name}");
         let own_writer_identifier = format_ident!("{instance_name_snake_case}_writer");
@@ -140,8 +140,8 @@ fn generate_cycler_constructors(cyclers: &Cyclers) -> TokenStream {
                 Default::default(),
                 Default::default(),
             ]);
-            let #cycler_variable_identifier = crate::cyclers::#cycler_module_name_identifier::Cycler::new(
-                crate::cyclers::#cycler_module_name_identifier::CyclerInstance::#cycler_instance_name_identifier,
+            let #cycler_variable_identifier = crate::cyclers::#cycler_module_name::Cycler::new(
+                crate::cyclers::#cycler_module_name::CyclerInstance::#cycler_instance_name_identifier,
                 hardware_interface.clone(),
                 #own_writer_identifier,
                 #cycler_database_changed_identifier.clone(),

@@ -25,7 +25,7 @@ pub fn generate_cyclers(cyclers: &Cyclers) -> TokenStream {
 }
 
 fn generate_module(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
-    let module_name = format_ident!("{}", cycler.module);
+    let module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
     let cycler_instance = generate_cycler_instance(cycler);
     let database_struct = generate_database_struct();
     let cycler_struct = generate_struct(cycler, cyclers);
@@ -69,7 +69,7 @@ fn generate_database_struct() -> TokenStream {
 }
 
 fn generate_struct(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
-    let module_name = format_ident!("{}", cycler.module);
+    let module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
     let input_output_fields = generate_input_output_fields(cycler, cyclers);
     let realtime_inputs = match cycler.kind {
         CyclerKind::Perception => quote! {},
@@ -121,7 +121,7 @@ fn generate_reader_fields(cyclers: &Cyclers) -> TokenStream {
         .instances_with(CyclerKind::RealTime)
         .map(|(cycler, instance)| {
             let field_name = format_ident!("{}_reader", instance.name.to_case(Case::Snake));
-            let cycler_module_name = format_ident!("{}", cycler.module);
+            let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
 
             quote! {
                 #field_name: framework::Reader<crate::cyclers::#cycler_module_name::Database>,
@@ -135,7 +135,7 @@ fn generate_consumer_fields(cyclers: &Cyclers) -> TokenStream {
         .instances_with(CyclerKind::Perception)
         .map(|(cycler, instance)| {
             let field_name = format_ident!("{}_consumer", instance.name.to_case(Case::Snake));
-            let cycler_module_name = format_ident!("{}", cycler.module);
+            let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
 
             quote! {
                 #field_name: framework::Consumer<crate::structs::#cycler_module_name::MainOutputs>,
@@ -146,15 +146,13 @@ fn generate_consumer_fields(cyclers: &Cyclers) -> TokenStream {
 
 fn generate_node_fields(cycler: &Cycler) -> TokenStream {
     let fields: Vec<_> = cycler
-        .nodes
-        .iter()
+        .iter_nodes()
         .map(|node| {
             let node_name_snake_case = format_ident!("{}", node.name.to_case(Case::Snake));
-            let cycler_module_name = format_ident!("{}", cycler.module);
             let node_module = &node.module;
             let node_name = format_ident!("{}", node.name);
             quote! {
-                #node_name_snake_case: #cycler_module_name::#node_module::#node_name
+                #node_name_snake_case: #node_module::#node_name
             }
         })
         .collect();
@@ -179,11 +177,10 @@ fn generate_implementation(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
 
 fn generate_new_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
     let input_output_fields = generate_input_output_fields(cycler, cyclers);
-    let cycler_module_name = format_ident!("{}", cycler.module);
+    let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
     let node_initializers = generate_node_initializers(cycler);
     let node_identifiers = cycler
-        .nodes
-        .iter()
+        .iter_nodes()
         .map(|node| format_ident!("{}", node.name.to_case(Case::Snake)));
     let input_output_identifiers = generate_input_output_identifiers(cycler, cyclers);
 
@@ -216,16 +213,15 @@ fn generate_new_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
 }
 
 fn generate_node_initializers(cycler: &Cycler) -> TokenStream {
-    let initializers = cycler.nodes.iter().map(|node| {
+    let initializers = cycler.iter_nodes().map(|node| {
         let node_name_snake_case = format_ident!("{}", node.name.to_case(Case::Snake));
-        let cycler_module_name = format_ident!("{}", cycler.module);
         let node_module = &node.module;
         let node_name = format_ident!("{}", node.name);
         let field_initializers = generate_node_field_initializers(node, cycler);
         let error_message = format!("failed to create node `{}`", node.name);
         quote! {
-            let #node_name_snake_case = #cycler_module_name::#node_module::#node_name::new(
-                #cycler_module_name::#node_module::CreationContext {
+            let #node_name_snake_case = #node_module::#node_name::new(
+                #node_module::CreationContext {
                     #field_initializers
                 }
             )
@@ -351,12 +347,12 @@ fn generate_start_method() -> TokenStream {
 }
 
 fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
-    let (setup_nodes, remaining_nodes): (Vec<_>, Vec<_>) =
-        cycler.nodes.iter().partition(|node| node.is_setup);
-    let setup_node_executions = setup_nodes
+    let setup_node_executions = cycler
+        .setup_nodes
         .iter()
         .map(|node| generate_node_execution(node, cycler));
-    let remaining_node_executions = remaining_nodes
+    let cycle_node_executions = cycler
+        .cycle_nodes
         .iter()
         .map(|node| generate_node_execution(node, cycler));
 
@@ -422,12 +418,14 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
                 }
 
                 #post_setup
+
                 {
                     let own_subscribed_outputs = self.own_subscribed_outputs_reader.next();
                     let configuration = self.configuration_reader.next();
                     #lock_readers
-                    #(#remaining_node_executions)*
+                    #(#cycle_node_executions)*
                 }
+
                 #after_remaining_nodes
             }
             self.own_changed.notify_one();
@@ -450,7 +448,6 @@ fn generate_perception_cycler_updates(cyclers: &Cyclers) -> TokenStream {
 }
 
 fn generate_node_execution(node: &Node, cycler: &Cycler) -> TokenStream {
-    let cycler_module_name = format_ident!("{}", cycler.module);
     let are_required_inputs_some = generate_required_input_condition(node, cycler);
     let node_name = &node.name;
     let node_module = &node.module;
@@ -465,7 +462,7 @@ fn generate_node_execution(node: &Node, cycler: &Cycler) -> TokenStream {
                 let main_outputs = {
                     let _task = ittapi::Task::begin(&itt_domain, #node_name);
                     self.#node_member.cycle(
-                        #cycler_module_name::#node_module::CycleContext {
+                        #node_module::CycleContext {
                             #context_initializers
                         },
                     )

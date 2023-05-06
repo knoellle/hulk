@@ -1,6 +1,8 @@
+use std::path::Path;
+
 use proc_macro2::TokenStream;
 use quote::quote;
-use source_analyzer::{cycler::Cyclers, structs::Structs};
+use source_analyzer::{cycler::Cyclers, manifest::FrameworkManifest, structs::Structs};
 
 use crate::{
     cyclers::generate_cyclers,
@@ -31,4 +33,14 @@ pub fn generate_framework(cyclers: &Cyclers, structs: &Structs) -> TokenStream {
             #generated_perception_databases
         }
     }
+}
+
+pub fn collect_watch_paths(manifest: &FrameworkManifest) -> impl Iterator<Item = &Path> {
+    manifest.cyclers.iter().flat_map(|cycler| {
+        cycler
+            .setup_nodes
+            .iter()
+            .chain(cycler.nodes.iter())
+            .map(|specification| specification.path.as_path())
+    })
 }

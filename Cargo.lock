@@ -554,6 +554,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "behavior_simulator"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap 4.2.7",
+ "code_generation",
+ "color-eyre",
+ "communication",
+ "control",
+ "convert_case",
+ "ctrlc",
+ "fern",
+ "framework",
+ "hardware",
+ "log",
+ "mlua",
+ "nalgebra",
+ "parameters",
+ "parking_lot",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "serialize_hierarchy",
+ "source_analyzer",
+ "spl_network_messages",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "types",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1824,9 +1857,9 @@ dependencies = [
 
 [[package]]
 name = "fast_image_resize"
-version = "2.7.1"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9b6b039ef8d0d6ae9e55dc53da0ee544bcff3e960cb033cb917e19e735cb86b"
+checksum = "96b758d4361841076b6eb911a4405bfa8835d9afa6310a84ae0f5ebbd6dbd372"
 dependencies = [
  "num-traits",
  "thiserror",
@@ -3823,9 +3856,9 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "serde"
-version = "1.0.160"
+version = "1.0.162"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2f3770c8bce3bcda7e149193a069a0f4365bda1fa5cd88e03bca26afc1216c"
+checksum = "71b2f6e1ab5c2b98c05f0f35b236b22e8df7ead6ffbf51d7808da7f8817e7ab6"
 dependencies = [
  "serde_derive",
 ]
@@ -3850,9 +3883,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.160"
+version = "1.0.162"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "291a097c63d8497e00160b166a967a4a79c64f3facdd01cbd7502231688d77df"
+checksum = "a2a0814352fd64b58489904a44ea8d90cb1a91dcb6b4f5ebabc32c8318e93cb6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3882,19 +3915,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_spanned"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93107647184f6027e3b7dcb2e11034cf95ffa1e3a682c67951963ac69c1c007d"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_test"
-version = "1.0.160"
+version = "1.0.162"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c95a500e3923258f7fc3a16bf29934e403aef5ca1096e184d85e3b1926675e8"
+checksum = "2b2931818f5d80d6bbe619cc30edd53b822fac51e1f6833cd4659072d701721b"
 dependencies = [
  "serde",
 ]
@@ -4469,14 +4493,11 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.7.4"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6135d499e69981f9ff0ef2167955a5333c35e36f6937d382974566b3d5b94ec"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
- "serde_spanned",
- "toml_datetime",
- "toml_edit",
 ]
 
 [[package]]
@@ -4484,9 +4505,6 @@ name = "toml_datetime"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a76a9312f5ba4c2dec6b9161fdf25d87ad8a09256ccea5a556fef03c706a10f"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "toml_edit"
@@ -4495,8 +4513,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2380d56e8670370eee6566b0bfd4265f65b3f432e8c6d85623f728d4fa31f739"
 dependencies = [
  "indexmap",
- "serde",
- "serde_spanned",
  "toml_datetime",
  "winnow",
 ]

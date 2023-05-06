@@ -1,18 +1,19 @@
-use std::{collections::BTreeMap, convert::Into, sync::Arc, time::SystemTime};
+use std::{convert::Into, sync::Arc};
 
 use color_eyre::{eyre::WrapErr, Result};
 use control::localization::generate_initial_pose;
-use cyclers::control::Database;
 use parameters::directory::deserialize;
 use spl_network_messages::PlayerNumber;
-use structs::Configuration;
-use types::messages::IncomingMessage;
 
-use crate::{cycler::BehaviorCycler, interfake::Interfake};
+use crate::{
+    cycler::{BehaviorCycler, Database},
+    interfake::Interfake,
+    structs::Configuration,
+};
 
 pub struct Robot {
     pub interface: Arc<Interfake>,
-    pub cycler: BehaviorCycler<Interfake>,
+    pub cycler: BehaviorCycler,
     pub database: Database,
     pub configuration: Configuration,
     pub is_penalized: bool,
@@ -28,8 +29,8 @@ impl Robot {
         let mut configuration: Configuration = runtime.block_on(async {
             deserialize(
                 "etc/configuration",
-                &format!("behavior_simulator{}", from_player_number(player_number)),
-                &format!("behavior_simulator{}", from_player_number(player_number)),
+                &format!("behavior_simulator.{}", from_player_number(player_number)),
+                &format!("behavior_simulator.{}", from_player_number(player_number)),
             )
             .await
             .wrap_err("could not load initial parameters")
@@ -55,9 +56,8 @@ impl Robot {
         })
     }
 
-    pub fn cycle(&mut self, messages: BTreeMap<SystemTime, Vec<&IncomingMessage>>) -> Result<()> {
-        self.cycler
-            .cycle(&mut self.database, &self.configuration, messages)
+    pub fn cycle(&mut self) -> Result<()> {
+        self.cycler.cycle(&mut self.database, &self.configuration)
     }
 }
 

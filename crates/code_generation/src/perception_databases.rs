@@ -7,9 +7,9 @@ pub fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
     let updates_fields = cyclers.instances_with(CyclerKind::Perception).map(
         |(cycler, instance)| {
             let field_name_identifier = format_ident!("{}", instance.name.to_case(Case::Snake));
-            let module_name_identifier = format_ident!("{}", cycler.module);
+            let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
             quote! {
-                pub #field_name_identifier: framework::Update<crate::structs::#module_name_identifier::MainOutputs>
+                pub #field_name_identifier: framework::Update<crate::structs::#cycler_module_name::MainOutputs>
             }
         },
     );
@@ -70,16 +70,15 @@ pub fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
 }
 
 pub fn generate_perception_databases(cyclers: &Cyclers) -> TokenStream {
-    let databases_fields =
-        cyclers
-            .instances_with(CyclerKind::Perception)
-            .map(|(cycler, instance)| {
-                let field_name_identifier = format_ident!("{}", instance.name.to_case(Case::Snake));
-                let module_name_identifier = format_ident!("{}", cycler.module);
-                quote! {
-                    pub #field_name_identifier: Vec<crate::structs::#module_name_identifier::MainOutputs>
-                }
-            });
+    let databases_fields = cyclers.instances_with(CyclerKind::Perception).map(
+        |(cycler, instance)| {
+            let field_name_identifier = format_ident!("{}", instance.name.to_case(Case::Snake));
+            let cycler_module_name = format_ident!("{}", cycler.name.to_case(Case::Snake));
+            quote! {
+                pub #field_name_identifier: Vec<crate::structs::#cycler_module_name::MainOutputs>
+            }
+        },
+    );
 
     quote! {
         #[derive(Default)]
