@@ -13,15 +13,30 @@ pub fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
             }
         },
     );
-    let timestamp_array_items =
-        cyclers
-            .instances_with(CyclerKind::Perception)
-            .map(|(_cycler, instance)| {
-                let field_name_identifier = format_ident!("{}", instance.name.to_case(Case::Snake));
-                quote! {
-                    self.#field_name_identifier.first_timestamp_of_non_finalized_database
-                }
-            });
+    let mut timestamp_array_items = cyclers
+        .instances_with(CyclerKind::Perception)
+        .map(|(_cycler, instance)| {
+            let field_name_identifier = format_ident!("{}", instance.name.to_case(Case::Snake));
+            quote! {
+                self.#field_name_identifier.first_timestamp_of_non_finalized_database
+            }
+        })
+        .peekable();
+    let find_min_timestamp = if timestamp_array_items.peek().is_some() {
+        quote! {
+                [
+                    #(#timestamp_array_items,)*
+                ]
+                .iter()
+                .copied()
+                .flatten()
+                .min()
+        }
+    } else {
+        quote! {
+            None
+        }
+    };
     let push_loops = cyclers
         .instances_with(CyclerKind::Perception)
         .map(|(_cycler, instance)| {
@@ -44,13 +59,7 @@ pub fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
 
         impl framework::Updates<Databases> for Updates {
             fn first_timestamp_of_temporary_databases(&self) -> Option<std::time::SystemTime> {
-                [
-                    #(#timestamp_array_items,)*
-                ]
-                .iter()
-                .copied()
-                .flatten()
-                .min()
+                #find_min_timestamp
             }
 
             fn push_to_databases(self, databases: &mut std::collections::BTreeMap<std::time::SystemTime, Databases>) {

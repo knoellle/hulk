@@ -16,16 +16,14 @@ pub fn generate_run_function(cyclers: &Cyclers) -> TokenStream {
 
     quote! {
         #[allow(unused_imports, unused_variables)]
-        pub fn run<Interface>(
-            hardware_interface: std::sync::Arc<Interface>,
+        pub(crate) fn run(
+            hardware_interface: std::sync::Arc<crate::HardwareInterface>,
             addresses: Option<impl tokio::net::ToSocketAddrs + std::marker::Send + std::marker::Sync + 'static>,
             parameters_directory: impl std::convert::AsRef<std::path::Path> + std::marker::Send + std::marker::Sync + 'static,
             body_id: String,
             head_id: String,
             keep_running: tokio_util::sync::CancellationToken,
         ) -> color_eyre::Result<()>
-        where
-            Interface: types::hardware::Interface + std::marker::Send + std::marker::Sync + 'static,
         {
             use color_eyre::eyre::WrapErr;
 

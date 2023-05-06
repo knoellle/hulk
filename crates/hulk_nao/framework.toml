@@ -36,6 +36,7 @@ nodes = [
   "game_state_filter",
   "ground_contact_detector",
   "ground_provider",
+  "hulk_message_filter",
   "kick_selector",
   "kinematics_provider",
   "led_status",

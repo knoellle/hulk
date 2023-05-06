@@ -15,6 +15,7 @@ pub fn generate_framework(cyclers: &Cyclers, structs: &Structs) -> TokenStream {
     let generated_structs = generate_structs(structs);
     let generated_perception_updates = generate_perception_updates(cyclers);
     let generated_perception_databases = generate_perception_databases(cyclers);
+
     quote! {
         mod cyclers {
             #generated_cyclers

@@ -33,7 +33,7 @@ fn generate_module(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
 
     quote! {
         #[allow(dead_code, unused_mut, unused_variables)]
-        pub mod #module_name {
+        pub(crate) mod #module_name {
             use color_eyre::eyre::WrapErr;
             use crate::structs::#module_name::{MainOutputs, AdditionalOutputs};
 
@@ -52,7 +52,7 @@ fn generate_cycler_instance(cycler: &Cycler) -> TokenStream {
         .map(|instance| format_ident!("{}", instance.name));
     quote! {
         #[derive(Clone, Copy, Debug)]
-        pub enum CyclerInstance {
+        pub(crate) enum CyclerInstance {
             #(#instances,)*
         }
     }
@@ -61,7 +61,7 @@ fn generate_cycler_instance(cycler: &Cycler) -> TokenStream {
 fn generate_database_struct() -> TokenStream {
     quote! {
         #[derive(Default, serde::Deserialize, serde::Serialize, serialize_hierarchy::SerializeHierarchy)]
-        pub struct Database {
+        pub(crate) struct Database {
             pub main_outputs: MainOutputs,
             pub additional_outputs: AdditionalOutputs,
         }
@@ -83,9 +83,9 @@ fn generate_struct(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
     let node_fields = generate_node_fields(cycler);
 
     quote! {
-        pub struct Cycler<Interface> {
+        pub(crate) struct Cycler {
             instance: CyclerInstance,
-            hardware_interface: std::sync::Arc<Interface>,
+            hardware_interface: std::sync::Arc<crate::HardwareInterface>,
             own_writer: framework::Writer<Database>,
             own_changed: std::sync::Arc<tokio::sync::Notify>,
             own_subscribed_outputs_reader: framework::Reader<std::collections::HashSet<String>>,
@@ -169,10 +169,7 @@ fn generate_implementation(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
     let cycle_method = generate_cycle_method(cycler, cyclers);
 
     quote! {
-        impl<Interface> Cycler<Interface>
-        where
-            Interface: types::hardware::Interface + std::marker::Send + std::marker::Sync + 'static,
-        {
+        impl Cycler {
             #new_method
             #start_method
             #cycle_method
@@ -191,9 +188,9 @@ fn generate_new_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
     let input_output_identifiers = generate_input_output_identifiers(cycler, cyclers);
 
     quote! {
-        pub fn new(
+        pub(crate) fn new(
             instance: CyclerInstance,
-            hardware_interface: std::sync::Arc<Interface>,
+            hardware_interface: std::sync::Arc<crate::HardwareInterface>,
             own_writer: framework::Writer<Database>,
             own_changed: std::sync::Arc<tokio::sync::Notify>,
             own_subscribed_outputs_reader: framework::Reader<std::collections::HashSet<String>>,
@@ -328,7 +325,7 @@ fn generate_consumer_identifiers(cyclers: &Cyclers) -> Vec<Ident> {
 
 fn generate_start_method() -> TokenStream {
     quote! {
-        pub fn start(
+        pub(crate) fn start(
             mut self,
             keep_running: tokio_util::sync::CancellationToken,
         ) -> color_eyre::Result<std::thread::JoinHandle<color_eyre::Result<()>>> {
@@ -371,7 +368,7 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
             let perception_cycler_updates = generate_perception_cycler_updates(cyclers);
 
             quote! {
-                let now = self.hardware_interface.get_now();
+                let now = <crate::HardwareInterface as hardware::TimeInterface>::get_now(&*self.hardware_interface);
                 self.perception_databases.update(now, crate::perception_databases::Updates {
                     #perception_cycler_updates
                 });
@@ -406,7 +403,7 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
     };
 
     quote! {
-        pub fn cycle(&mut self) -> color_eyre::Result<()> {
+        pub(crate) fn cycle(&mut self) -> color_eyre::Result<()> {
             {
                 let instance = self.instance;
                 let instance_name = format!("{instance:?}");

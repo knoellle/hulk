@@ -479,6 +479,7 @@ dependencies = [
  "context_attribute",
  "filtering",
  "framework",
+ "hardware",
  "rustfft",
  "types",
 ]
@@ -1136,6 +1137,7 @@ dependencies = [
  "context_attribute",
  "filtering",
  "framework",
+ "hardware",
  "itertools",
  "kinematics",
  "log",
@@ -2201,6 +2203,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "hardware"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "types",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2301,6 +2311,7 @@ dependencies = [
  "ctrlc",
  "fern",
  "framework",
+ "hardware",
  "i2cdev",
  "ittapi",
  "libc",
@@ -2338,6 +2349,7 @@ dependencies = [
  "ctrlc",
  "fern",
  "framework",
+ "hardware",
  "i2cdev",
  "ittapi",
  "log",
@@ -4088,6 +4100,7 @@ dependencies = [
  "color-eyre",
  "context_attribute",
  "framework",
+ "hardware",
  "log",
  "serde",
  "thiserror",
@@ -4768,6 +4781,7 @@ dependencies = [
  "fast_image_resize",
  "filtering",
  "framework",
+ "hardware",
  "image",
  "itertools",
  "nalgebra",
