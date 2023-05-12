@@ -3,7 +3,7 @@ use std::sync::Arc;
 use color_eyre::Result;
 use communication::client::{Cycler, CyclerOutput, Output};
 use eframe::epaint::{Color32, Stroke};
-use nalgebra::{Isometry2, Point2};
+use nalgebra::{vector, Isometry2, Point2};
 use types::{ball_filter::Hypothesis, FieldDimensions};
 
 use crate::{
@@ -52,6 +52,10 @@ impl Layer for BallFilter {
             let stroke = Stroke::new(0.01, Color32::BLACK);
             let fill_color = Color32::from_rgba_unmultiplied(255, 255, 0, 100);
             painter.covariance(position, covariance, stroke, fill_color);
+            let mean = hypothesis.state.mean;
+            let velocity = vector![mean.z, mean.w];
+            let stroke = Stroke::new(0.1, Color32::BLACK);
+            painter.line_segment(position, position + velocity, stroke);
         }
 
         Ok(())

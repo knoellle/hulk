@@ -17,6 +17,7 @@ use types::{
 
 pub struct BallFilter {
     hypotheses: Vec<Hypothesis>,
+    last_velocity: Option<Vector2<f32>>,
 }
 
 #[context]
@@ -41,6 +42,7 @@ pub struct CycleContext {
     pub filtered_balls_in_image_bottom:
         AdditionalOutput<Vec<Circle>, "filtered_balls_in_image_bottom">,
     pub filtered_balls_in_image_top: AdditionalOutput<Vec<Circle>, "filtered_balls_in_image_top">,
+    pub ball_acceleration: AdditionalOutput<Vector2<f32>, "ball_acceleration">,
 
     pub current_odometry_to_last_odometry:
         HistoricInput<Option<Isometry2<f32>>, "current_odometry_to_last_odometry?">,
@@ -80,6 +82,7 @@ impl BallFilter {
     pub fn new(_context: CreationContext) -> Result<Self> {
         Ok(Self {
             hypotheses: Vec::new(),
+            last_velocity: None,
         })
     }
 
@@ -164,9 +167,33 @@ impl BallFilter {
                     .collect()
             });
         let decay: f32 = *context.velocity_decay_factor;
+        // let ball_rest_position = ball_position.map(|ball| {
+        //     ball.position + ball.velocity * 0.012 * (1.0 - decay.powi(200)) / (1.0 - decay)
+        // });
         let ball_rest_position = ball_position.map(|ball| {
-            ball.position + ball.velocity * 0.012 * (1.0 - decay.powi(200)) / (1.0 - decay)
+            let mut velocity = ball.velocity;
+            let mut position = ball.position;
+            let cycle_time = 0.012;
+            for _ in 0..200 {
+                position += velocity * cycle_time;
+                let deceleration = velocity.cap_magnitude(0.02 * cycle_time);
+                velocity -= deceleration;
+            }
+
+            position
         });
+
+        if let Some(ball_position) = ball_position {
+            if let Some(last) = self.last_velocity {
+                let acceleration = ball_position.velocity - last;
+                context
+                    .ball_acceleration
+                    .fill_if_subscribed(|| acceleration);
+            }
+            self.last_velocity = Some(ball_position.velocity);
+        } else {
+            self.last_velocity = None;
+        }
 
         Ok(MainOutputs {
             ball_position: ball_position.into(),
