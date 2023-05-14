@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use color_eyre::Result;
 use context_attribute::context;
@@ -12,7 +12,7 @@ use types::{
     ball_filter::Hypothesis, is_above_limbs,
     multivariate_normal_distribution::MultivariateNormalDistribution, Ball, BallPosition,
     CameraMatrices, CameraMatrix, Circle, CycleTime, FieldDimensions, Limb, ProjectedLimbs,
-    SensorData,
+    SensorData, TimedPercept,
 };
 
 pub struct BallFilter {
@@ -43,6 +43,7 @@ pub struct CycleContext {
         AdditionalOutput<Vec<Circle>, "filtered_balls_in_image_bottom">,
     pub filtered_balls_in_image_top: AdditionalOutput<Vec<Circle>, "filtered_balls_in_image_top">,
     pub ball_acceleration: AdditionalOutput<Vector2<f32>, "ball_acceleration">,
+    pub timed_percepts: AdditionalOutput<Vec<TimedPercept>, "timed_percepts">,
 
     pub current_odometry_to_last_odometry:
         HistoricInput<Option<Isometry2<f32>>, "current_odometry_to_last_odometry?">,
@@ -92,6 +93,7 @@ impl BallFilter {
             .persistent
             .iter()
             .zip(context.balls_bottom.persistent.values());
+        let mut timed_percepts = Vec::new();
         for ((detection_time, balls_top), balls_bottom) in measured_balls {
             let current_odometry_to_last_odometry = context
                 .current_odometry_to_last_odometry
@@ -126,9 +128,18 @@ impl BallFilter {
                         Matrix2::from_diagonal(context.measurement_noise),
                         Matrix4::from_diagonal(context.initial_covariance),
                     );
+                    timed_percepts.push(TimedPercept {
+                        position: ball.position,
+                        time: detection_time
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs_f32(),
+                    })
                 }
             }
         }
+
+        context.timed_percepts.fill_if_subscribed(|| timed_percepts);
 
         self.remove_hypotheses(
             context.cycle_time.start_time,

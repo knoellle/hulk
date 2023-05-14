@@ -72,7 +72,7 @@ pub mod ycbcr422_image;
 // TODO: convert all "mod" to "pub mod"
 
 pub use action::Action;
-pub use ball::{Ball, CandidateEvaluation};
+pub use ball::{Ball, CandidateEvaluation, TimedPercept};
 pub use ball_position::BallPosition;
 pub use buttons::Buttons;
 pub use camera_matrix::{CameraMatrices, CameraMatrix, ProjectedFieldLines};

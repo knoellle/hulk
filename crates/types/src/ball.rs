@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use approx::{AbsDiffEq, RelativeEq};
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
@@ -18,6 +20,12 @@ pub struct CandidateEvaluation {
 pub struct Ball {
     pub position: Point2<f32>,
     pub image_location: Circle,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SerializeHierarchy)]
+pub struct TimedPercept {
+    pub position: Point2<f32>,
+    pub time: f32,
 }
 
 impl AbsDiffEq for Ball {

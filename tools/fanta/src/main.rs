@@ -7,6 +7,7 @@ use communication::{
     messages::Format,
 };
 use log::{error, info};
+use serde_json::Value;
 
 use crate::logging::setup_logger;
 
@@ -32,7 +33,12 @@ async fn main() -> Result<()> {
         .await;
     while let Some(message) = receiver.recv().await {
         match message {
-            SubscriberMessage::Update { value } => println!("{value:#}"),
+            SubscriberMessage::Update { value } => match value {
+                Value::Array(values) if values.is_empty() => {}
+                value => {
+                    println!("{value:#},");
+                }
+            },
             SubscriberMessage::SubscriptionSuccess => info!("Successfully subscribed"),
             SubscriberMessage::SubscriptionFailure { info } => {
                 error!("Failed to subscribe: {info:?}");
