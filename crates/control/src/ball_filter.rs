@@ -65,6 +65,7 @@ pub struct CycleContext {
     pub process_noise: Parameter<Vector4<f32>, "ball_filter.process_noise">,
     pub validity_discard_threshold: Parameter<f32, "ball_filter.validity_discard_threshold">,
     pub velocity_decay_factor: Parameter<f32, "ball_filter.velocity_decay_factor">,
+    pub velocity_decay_factor_rest: Parameter<f32, "ball_filter.velocity_decay_factor_rest">,
     pub visible_validity_exponential_decay_factor:
         Parameter<f32, "ball_filter.visible_validity_exponential_decay_factor">,
 
@@ -181,13 +182,14 @@ impl BallFilter {
         // let ball_rest_position = ball_position.map(|ball| {
         //     ball.position + ball.velocity * 0.012 * (1.0 - decay.powi(200)) / (1.0 - decay)
         // });
+        let decay_rest = *context.velocity_decay_factor_rest;
         let ball_rest_position = ball_position.map(|ball| {
             let mut velocity = ball.velocity;
             let mut position = ball.position;
             let cycle_time = 0.012;
-            for _ in 0..200 {
+            for _ in 0..1000 {
                 position += velocity * cycle_time;
-                let deceleration = velocity.cap_magnitude(0.02 * cycle_time);
+                let deceleration = velocity.cap_magnitude(decay_rest * cycle_time);
                 velocity -= deceleration;
             }
 
