@@ -404,19 +404,6 @@ pub struct LineDetection {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, SerializeHierarchy)]
-pub struct BallFilter {
-    pub hypothesis_timeout: Duration,
-    pub measurement_matching_distance: f32,
-    pub hypothesis_merge_distance: f32,
-    pub process_noise: Vector4<f32>,
-    pub measurement_noise: Vector2<f32>,
-    pub initial_covariance: Vector4<f32>,
-    pub visible_validity_exponential_decay_factor: f32,
-    pub hidden_validity_exponential_decay_factor: f32,
-    pub validity_discard_threshold: f32,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize, SerializeHierarchy)]
 pub struct StandUp {
     pub gyro_low_pass_filter_coefficient: f32,
     pub gyro_low_pass_filter_tolerance: f32,
