@@ -1853,6 +1853,7 @@ name = "filtering"
 version = "0.1.0"
 dependencies = [
  "approx",
+ "color-eyre",
  "nalgebra",
  "rand",
  "rand_distr",
