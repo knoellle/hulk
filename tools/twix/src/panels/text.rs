@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use communication::client::CyclerOutput;
-use eframe::egui::{self, Label, Response, ScrollArea, Sense, Ui, Widget};
+use eframe::egui::{Label, Response, ScrollArea, Sense, Ui, Widget};
 use log::error;
 use serde_json::{json, Value};
 
