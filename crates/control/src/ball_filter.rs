@@ -2,10 +2,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use color_eyre::Result;
 use context_attribute::context;
-use filtering::kalman_filter::KalmanFilter;
+use filtering::{kalman_filter::KalmanFilter, unscented_kalman_filter::UnscentedKalmanFilter};
 use framework::{AdditionalOutput, HistoricInput, MainOutput, PerceptionInput};
 use nalgebra::{
-    matrix, vector, Isometry2, Matrix2, Matrix2x4, Matrix4, Matrix4x2, Point2, Vector2, Vector4,
+    matrix, vector, Isometry2, Matrix2, Matrix2x4, Matrix4, Matrix4x2, Point2, SVector, Vector2,
+    Vector4,
 };
 use projection::Projection;
 use types::{
@@ -104,11 +105,14 @@ impl BallFilter {
                 .iter()
                 .chain(balls_bottom.iter())
                 .filter_map(|data| data.as_ref());
-            self.predict_hypotheses_with_odometry(
+            let mean_weight = 0.5;
+            self.predict_hypotheses(
                 *context.velocity_decay_factor,
-                current_odometry_to_last_odometry.inverse(),
                 Matrix4::from_diagonal(context.process_noise),
+                mean_weight,
             );
+
+            // self.update_hypotheses_with_odometry();
 
             let camera_matrices = context.historic_camera_matrices.get(detection_time);
             let projected_limbs_bottom = context.projected_limbs.get(detection_time);
@@ -122,7 +126,7 @@ impl BallFilter {
 
             for balls in measured_balls_in_control_cycle {
                 for ball in *balls {
-                    self.update_hypotheses_with_measurement(
+                    self.update_hypotheses_with_ball_measurement(
                         ball.position,
                         *detection_time,
                         *context.measurement_matching_distance,
@@ -242,42 +246,64 @@ impl BallFilter {
         }
     }
 
-    fn predict_hypotheses_with_odometry(
+    fn predict_hypotheses(
         &mut self,
         velocity_decay_factor: f32,
-        last_odometry_to_current_odometry: Isometry2<f32>,
         process_noise: Matrix4<f32>,
+        mean_weight: f32,
     ) {
         for hypothesis in self.hypotheses.iter_mut() {
             let cycle_time = 0.012;
-            let constant_velocity_prediction = matrix![
-                1.0, 0.0, cycle_time, 0.0;
-                0.0, 1.0, 0.0, cycle_time;
-                0.0, 0.0, velocity_decay_factor, 0.0;
-                0.0, 0.0, 0.0, velocity_decay_factor;
-            ];
-            let rotation = last_odometry_to_current_odometry
-                .rotation
-                .to_rotation_matrix();
-            let state_rotation = matrix![
-                rotation[(0, 0)], rotation[(0, 1)], 0.0, 0.0;
-                rotation[(1, 0)], rotation[(1, 1)], 0.0, 0.0;
-                0.0, 0.0, rotation[(0, 0)], rotation[(0, 1)];
-                0.0, 0.0, rotation[(1, 0)], rotation[(1, 1)];
-            ];
-            let state_prediction = constant_velocity_prediction * state_rotation;
-            let control_input_model = Matrix4x2::identity();
-            let odometry_translation = last_odometry_to_current_odometry.translation.vector;
-            hypothesis.state.predict(
-                state_prediction,
-                control_input_model,
-                odometry_translation,
-                process_noise,
-            )
+            let state_prediction = |state: SVector<f32, 4>| {
+                let position = Vector2::new(state[0], state[1]);
+                let velocity = Vector2::new(state[2], state[3]);
+                let predicted_position = position + cycle_time * velocity;
+                let predicted_velocity =
+                    velocity - cycle_time * velocity_decay_factor * velocity.normalize();
+                SVector::<f32, 4>::new(
+                    predicted_position[0],
+                    predicted_position[1],
+                    predicted_velocity[0],
+                    predicted_velocity[1],
+                )
+            };
+            // TODO: Handle result
+            hypothesis
+                .state
+                .predict_nonlinear(state_prediction, process_noise, mean_weight)
+                .unwrap();
         }
     }
-
-    fn update_hypotheses_with_measurement(
+    fn update_hypotheses_with_odometry(
+        &mut self,
+        detected_position: Point2<f32>,
+        detection_time: SystemTime,
+        matching_distance: f32,
+        measurement_noise: Matrix2<f32>,
+        initial_covariance: Matrix4<f32>,
+    ) {
+        let mut matching_hypotheses = self
+            .hypotheses
+            .iter_mut()
+            .filter(|hypothesis| {
+                (hypothesis.state.mean.xy() - detected_position.coords).norm() < matching_distance
+            })
+            .peekable();
+        if matching_hypotheses.peek().is_none() {
+            self.spawn_hypothesis(detected_position, detection_time, initial_covariance);
+            return;
+        }
+        matching_hypotheses.for_each(|hypothesis| {
+            hypothesis.state.update(
+                Matrix2x4::identity(),
+                detected_position.coords,
+                measurement_noise * detected_position.coords.norm_squared(),
+            );
+            hypothesis.validity += 1.0;
+            hypothesis.last_update = detection_time;
+        });
+    }
+    fn update_hypotheses_with_ball_measurement(
         &mut self,
         detected_position: Point2<f32>,
         detection_time: SystemTime,

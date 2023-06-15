@@ -3,12 +3,14 @@ use nalgebra::{SMatrix, SVector};
 use types::multivariate_normal_distribution::MultivariateNormalDistribution;
 
 pub trait UnscentedKalmanFilter<const STATE_DIMENSION: usize> {
-    fn predict_nonlinear<const CONTROL_DIMENSION: usize>(
+    fn predict_nonlinear<F>(
         &mut self,
-        state_prediction: fn(SVector<f32, STATE_DIMENSION>) -> SVector<f32, STATE_DIMENSION>,
+        state_prediction: F,
         process_noise: SMatrix<f32, STATE_DIMENSION, STATE_DIMENSION>,
         mean_weight: f32,
-    ) -> Result<()>;
+    ) -> Result<()>
+    where
+        F: FnMut(SVector<f32, STATE_DIMENSION>) -> SVector<f32, STATE_DIMENSION>;
     fn generate_sigma_points(&self, mean_weight: f32)
         -> Result<Vec<SVector<f32, STATE_DIMENSION>>>;
 }
@@ -46,12 +48,15 @@ pub fn into_symmetric<const DIMENSION: usize>(
 impl<const STATE_DIMENSION: usize> UnscentedKalmanFilter<STATE_DIMENSION>
     for MultivariateNormalDistribution<STATE_DIMENSION>
 {
-    fn predict_nonlinear<const CONTROL_DIMENSION: usize>(
+    fn predict_nonlinear<F>(
         &mut self,
-        state_prediction: fn(SVector<f32, STATE_DIMENSION>) -> SVector<f32, STATE_DIMENSION>,
+        state_prediction: F,
         process_noise: SMatrix<f32, STATE_DIMENSION, STATE_DIMENSION>,
         mean_weight: f32,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        F: FnMut(SVector<f32, STATE_DIMENSION>) -> SVector<f32, STATE_DIMENSION>,
+    {
         let sigma_points = self.generate_sigma_points(mean_weight)?;
         let predicted_sigma_points: Vec<SVector<f32, STATE_DIMENSION>> =
             sigma_points.into_iter().map(state_prediction).collect();
