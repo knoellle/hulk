@@ -7,8 +7,8 @@ use nalgebra::{distance, point, vector, Point2, Vector2};
 use ordered_float::NotNan;
 use projection::Projection;
 use types::{
-    ycbcr422_image::YCbCr422Image, CameraMatrix, EdgeType, FilteredSegments, ImageLines, Line,
-    LineData, LineDiscardReason, Segment,
+    ycbcr422_image::YCbCr422Image, CameraMatrix, EdgeType, FilteredSegments, ImageLines,
+    ImageSegments, Line, LineData, LineDiscardReason, Segment,
 };
 
 use crate::ransac::{Ransac, RansacResult};
@@ -21,6 +21,7 @@ pub struct CreationContext {}
 #[context]
 pub struct CycleContext {
     pub lines_in_image: AdditionalOutput<ImageLines, "lines_in_image">,
+    pub line_segments: AdditionalOutput<ImageSegments, "line_segments">,
 
     pub allowed_line_length_in_field:
         Parameter<Range<f32>, "line_detection.$cycler_instance.allowed_line_length_in_field">,
@@ -41,6 +42,7 @@ pub struct CycleContext {
         Parameter<f32, "line_detection.$cycler_instance.maximum_projected_segment_length">,
     pub minimum_number_of_points_on_line:
         Parameter<usize, "line_detection.$cycler_instance.minimum_number_of_points_on_line">,
+    pub merge_line_segments: Parameter<bool, "line_detection.$cycler_instance.merge_line_segments">,
 
     pub camera_matrix: RequiredInput<Option<CameraMatrix>, "camera_matrix?">,
     pub filtered_segments: Input<FilteredSegments, "filtered_segments">,
@@ -69,6 +71,8 @@ impl LineDetection {
             *context.maximum_projected_segment_length,
             *context.check_edge_gradient,
             *context.gradient_alignment,
+            *context.merge_line_segments,
+            &context.line_segments,
         );
         if context.lines_in_image.is_subscribed() {
             image_lines.points = line_points.clone();
@@ -231,6 +235,7 @@ fn get_gradient(image: &YCbCr422Image, point: Point2<u16>) -> Vector2<f32> {
         .unwrap_or_else(Vector2::zeros)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn filter_segments_for_lines(
     camera_matrix: &CameraMatrix,
     filtered_segments: &FilteredSegments,
@@ -239,32 +244,72 @@ fn filter_segments_for_lines(
     maximum_projected_segment_length: f32,
     check_edge_gradient: bool,
     gradient_alignment: f32,
+    merge: bool,
+    line_segments_output: &mut AdditionalOutput<ImageSegments>,
 ) -> (Vec<Point2<f32>>, HashSet<Point2<u16>>) {
+    let mut line_segments = ImageSegments::default();
+    line_segments
+        .scan_grid
+        .vertical_scan_lines
+        .push(types::ScanLine {
+            position: 0,
+            segments: Vec::new(),
+        });
+    let mut last_position = 0;
     let (line_points, used_vertical_filtered_segments) = filtered_segments
         .scan_grid
         .vertical_scan_lines
         .iter()
         .flat_map(|scan_line| {
             let scan_line_position = scan_line.position;
-            scan_line.segments.iter().filter_map(move |segment| {
-                let is_line_segment = is_line_segment(
-                    segment,
-                    scan_line_position,
-                    image,
-                    camera_matrix,
-                    check_line_segments_projection,
-                    maximum_projected_segment_length,
-                    check_edge_gradient,
-                    gradient_alignment,
-                );
-                if is_line_segment {
-                    Some((scan_line_position, segment))
-                } else {
-                    None
+            let mut line_segments = scan_line
+                .segments
+                .iter()
+                .filter(move |segment| {
+                    is_line_segment(
+                        segment,
+                        scan_line_position,
+                        image,
+                        camera_matrix,
+                        check_line_segments_projection,
+                        maximum_projected_segment_length,
+                        check_edge_gradient,
+                        gradient_alignment,
+                    )
+                })
+                .peekable();
+
+            let mut merged_segments = Vec::new();
+            while let Some(mut current) = line_segments.next().copied() {
+                if let Some(next) = line_segments.peek().copied() {
+                    if merge && current.end == next.start {
+                        line_segments.next();
+                        current.end = next.end;
+                        current.end_edge_type = next.end_edge_type;
+                    }
                 }
-            })
+                merged_segments.push((scan_line_position, current));
+            }
+            merged_segments
         })
         .map(|(scan_line_position, segment)| {
+            if scan_line_position != last_position {
+                line_segments
+                    .scan_grid
+                    .vertical_scan_lines
+                    .push(types::ScanLine {
+                        position: scan_line_position,
+                        segments: Vec::new(),
+                    });
+                last_position = scan_line_position;
+            }
+            line_segments
+                .scan_grid
+                .vertical_scan_lines
+                .last_mut()
+                .unwrap()
+                .segments
+                .push(segment);
             let center = (segment.start + segment.end) as f32 / 2.0;
             (
                 point![scan_line_position as f32, center],
@@ -272,6 +317,7 @@ fn filter_segments_for_lines(
             )
         })
         .unzip();
+    line_segments_output.fill_if_subscribed(|| line_segments);
     (line_points, used_vertical_filtered_segments)
 }
 
@@ -422,6 +468,7 @@ mod tests {
             maximum_projected_segment_length,
             check_edge_gradient,
             gradient_alignment,
+            false,
         );
         assert_eq!(line_points.len(), 32);
     }
