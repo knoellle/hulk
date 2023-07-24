@@ -23,6 +23,8 @@ use eframe::{
 use egui_dock::{DockArea, NodeIndex, TabAddAlign, TabIndex, Tree};
 use fern::{colors::ColoredLevelConfig, Dispatch, InitError};
 
+use flow::context::Context as FlowContext;
+use layouts::simple;
 use log::error;
 use nao::Nao;
 use panel::Panel;
@@ -45,6 +47,9 @@ pub mod selectable_panel_macro;
 mod twix_painter;
 mod value_buffer;
 pub mod visuals;
+
+pub mod flow;
+pub mod layouts;
 
 fn setup_logger() -> Result<(), InitError> {
     Dispatch::new()
@@ -115,23 +120,11 @@ impl TwixApp {
 
         let nao = Arc::new(Nao::new(ip_address.clone(), connection_intent));
 
-        let tree: Option<Tree<Value>> = creation_context
-            .storage
-            .and_then(|storage| storage.get_string("tree"))
-            .and_then(|string| from_str(&string).ok());
-
-        let tree = match tree {
-            Some(tree) => tree.map_tabs(|value| {
-                SelectablePanel::new(nao.clone(), Some(value))
-                    .unwrap()
-                    .into()
-            }),
-            None => Tree::new(vec![SelectablePanel::TextPanel(TextPanel::new(
-                nao.clone(),
-                None,
-            ))
-            .into()]),
+        let context = FlowContext {
+            robots: vec![nao.clone()],
         };
+        let panels = simple::run(context).unwrap();
+        let tree = Tree::new(panels.into_iter().map(Tab::from).collect());
 
         let connection_status = ConnectionStatus::Disconnected {
             address: None,
@@ -269,21 +262,21 @@ impl App for TwixApp {
         });
     }
 
-    fn save(&mut self, storage: &mut dyn Storage) {
-        let tree = self.tree.map_tabs(|tab| tab.panel.save());
-
-        storage.set_string("tree", to_string(&tree).unwrap());
-        storage.set_string("ip_address", self.ip_address.clone());
-        storage.set_string(
-            "connection_intent",
-            if self.connection_intent {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        );
-        storage.set_string("style", self.visual.to_string());
+    fn save(&mut self, _storage: &mut dyn Storage) {
+        // let tree = self.tree.map_tabs(|tab| tab.panel.save());
+        //
+        // storage.set_string("tree", to_string(&tree).unwrap());
+        // storage.set_string("ip_address", self.ip_address.clone());
+        // storage.set_string(
+        //     "connection_intent",
+        //     if self.connection_intent {
+        //         "true"
+        //     } else {
+        //         "false"
+        //     }
+        //     .to_string(),
+        // );
+        // storage.set_string("style", self.visual.to_string());
     }
 }
 

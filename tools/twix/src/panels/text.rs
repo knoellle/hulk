@@ -47,6 +47,16 @@ impl Panel for TextPanel {
     }
 }
 
+impl TextPanel {
+    pub fn new_with_buffer(nao: Arc<Nao>, values: ValueBuffer) -> Self {
+        Self {
+            nao,
+            output: String::new(),
+            values: Some(values),
+        }
+    }
+}
+
 impl Widget for &mut TextPanel {
     fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
         let edit_response = ui.add(CompletionEdit::outputs(&mut self.output, self.nao.as_ref()));
