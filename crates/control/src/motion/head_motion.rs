@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use color_eyre::Result;
 use context_attribute::context;
-use framework::MainOutput;
+use framework::{deserialize_not_implemented, MainOutput};
 use serde::{Deserialize, Serialize};
 use types::{
     cycle_time::CycleTime,

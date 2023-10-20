@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::BuildHasherDefault};
 
 use color_eyre::Result;
 use context_attribute::context;
@@ -128,7 +128,7 @@ fn find_matching_row(rows: &[Row], segment: &Segment) -> Option<(usize, Row)> {
 
 fn generate_candidates(
     vertical_scanlines: &[ScanLine],
-    skip_segments: &HashSet<Point2<u16>>,
+    skip_segments: &HashSet<Point2<u16>, BuildHasherDefault<fxhash::FxHasher64>>,
     rows: &[Row],
 ) -> PerspectiveGridCandidates {
     let mut already_added = HashSet::new();
@@ -256,7 +256,7 @@ mod tests {
                 field_color: Intensity::Low,
             }],
         }];
-        let skip_segments = HashSet::new();
+        let skip_segments = Default::default();
         let candidates = generate_candidates(&vertical_scan_lines, &skip_segments, &rows);
         assert_relative_eq!(
             candidates,

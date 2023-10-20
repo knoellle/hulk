@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::BuildHasherDefault};
 
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,8 @@ use crate::line::Line2;
 #[derive(Clone, Default, Debug, Serialize, Deserialize, SerializeHierarchy)]
 pub struct LineData {
     pub lines_in_robot: Vec<Line2>,
-    pub used_vertical_filtered_segments: HashSet<Point2<u16>>,
+    pub used_vertical_filtered_segments:
+        HashSet<Point2<u16>, BuildHasherDefault<fxhash::FxHasher64>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SerializeHierarchy)]

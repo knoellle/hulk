@@ -49,8 +49,8 @@ macro_rules! implement_as_not_supported {
             }
         }
     };
-    ($type:ty, $generic:tt) => {
-        impl<$generic> SerializeHierarchy for $type {
+    ($type:ty, $($generics:tt),+) => {
+        impl<$($generics),+> SerializeHierarchy for $type {
             fn serialize_path<S>(
                 &self,
                 path: &str,
@@ -113,4 +113,4 @@ implement_as_not_supported!(Duration);
 implement_as_not_supported!(String);
 implement_as_not_supported!(PathBuf);
 implement_as_not_supported!(Vec<T>, T);
-implement_as_not_supported!(HashSet<T>, T);
+implement_as_not_supported!(HashSet<T, H>, T, H);

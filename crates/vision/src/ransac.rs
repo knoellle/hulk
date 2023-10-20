@@ -21,6 +21,13 @@ impl Ransac {
                 .expect("Failed to create random number generator"),
         }
     }
+
+    pub fn new_with_seed(unused_points: Vec<Point2<f32>>, seed: u64) -> Self {
+        Self {
+            unused_points,
+            random_number_generator: StdRng::seed_from_u64(seed),
+        }
+    }
 }
 
 impl Ransac {

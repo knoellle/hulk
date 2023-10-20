@@ -595,6 +595,7 @@ dependencies = [
  "parameters",
  "parking_lot",
  "serde",
+ "serde_json",
  "serialize_hierarchy",
  "source_analyzer",
  "spl_network",
@@ -1908,6 +1909,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "serde",
+ "serde_json",
  "thiserror",
  "types",
 ]
@@ -2049,6 +2051,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
 dependencies = [
  "thread_local",
+]
+
+[[package]]
+name = "fxhash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
+dependencies = [
+ "byteorder",
 ]
 
 [[package]]
@@ -2367,6 +2378,7 @@ dependencies = [
  "ittapi",
  "nalgebra",
  "serde",
+ "serde_json",
  "serialize_hierarchy",
  "source_analyzer",
  "spl_network",
@@ -3965,8 +3977,6 @@ checksum = "ad977052201c6de01a8ef2aa3378c4bd23217a056337d1d6da40468d267a4fb0"
 [[package]]
 name = "serde"
 version = "1.0.188"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf9e0fcba69a370eed61bcf2b728575f726b50b55cba78064753d708ddc7549e"
 dependencies = [
  "serde_derive",
 ]
@@ -3974,8 +3984,6 @@ dependencies = [
 [[package]]
 name = "serde_derive"
 version = "1.0.188"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eca7ac642d82aa35b60049a6eccb4be6be75e599bd2e9adb5f875a737654af2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4722,6 +4730,7 @@ dependencies = [
  "approx",
  "color-eyre",
  "enum-iterator",
+ "fxhash",
  "image",
  "nalgebra",
  "ordered-float",
@@ -4838,6 +4847,7 @@ dependencies = [
  "fast_image_resize",
  "filtering",
  "framework",
+ "fxhash",
  "hardware",
  "itertools",
  "nalgebra",
@@ -4845,6 +4855,8 @@ dependencies = [
  "projection",
  "rand",
  "serde",
+ "serde_derive",
+ "serde_json",
  "types",
 ]
 

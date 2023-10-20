@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use color_eyre::Result;
 use context_attribute::context;
-use framework::{AdditionalOutput, MainOutput};
+use framework::{deserialize_not_implemented, AdditionalOutput, MainOutput};
 use nalgebra::{point, Point2, Vector2};
 use serde::{Deserialize, Serialize};
 use spl_network_messages::{GamePhase, GameState, SubState, Team};
@@ -41,6 +41,7 @@ use super::{
 pub struct Behavior {
     last_motion_command: MotionCommand,
     absolute_last_known_ball_position: Point2<f32>,
+    // #[serde(skip, default = "deserialize_not_implemented")]
     active_since: Option<SystemTime>,
 }
 

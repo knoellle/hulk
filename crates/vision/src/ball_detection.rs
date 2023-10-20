@@ -97,6 +97,8 @@ impl BallDetection {
     }
 
     pub fn cycle(&mut self, mut context: CycleContext) -> Result<MainOutputs> {
+        let value = serde_json::to_value(&self).unwrap();
+        Self::deserialize_in_place(value, self).unwrap();
         let candidates = &context.perspective_grid_candidates.candidates;
 
         let evaluations = evaluate_candidates(

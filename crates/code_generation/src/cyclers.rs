@@ -353,6 +353,7 @@ fn generate_start_method() -> TokenStream {
                     while !keep_running.is_cancelled() {
                         if let Err(error) = self.cycle() {
                             keep_running.cancel();
+                            println!("{error}");
                             return Err(error).wrap_err_with(|| {
                                 format!("failed to execute cycle of cycler `{:?}`", self.instance)
                             });
@@ -643,9 +644,20 @@ fn generate_node_execution(
     let are_required_inputs_some = generate_required_input_condition(node, cycler);
     let node_name = &node.name;
     let node_module = &node.module;
+    let node_type = format_ident!("{}", node.name);
     let node_member = format_ident!("{}", node.name.to_case(Case::Snake));
     let context_initializers = generate_context_initializers(node, cycler);
     let recording_error_message = format!("failed to record `{}`", node.name);
+    let check = (matches!(recording_generation, RecordingGeneration::Skip)).then_some(
+        quote!{
+            if b != c {
+                println!("Repro error in {}", #node_name);
+                println!("{b:?}");
+                println!("{c:?}");
+            }
+            // assert_eq!(b, c, #node_name);
+        }
+    );
     let cycle_error_message = format!("failed to execute cycle of `{}`", node.name);
     let database_updates = generate_database_updates(node, recording_generation);
     let database_updates_from_defaults = generate_database_updates_from_defaults(node);
@@ -656,6 +668,20 @@ fn generate_node_execution(
             }
             #[allow(clippy::needless_else)]
             if #are_required_inputs_some {
+                let a = serde_json::to_value(&self.#node_member).unwrap();
+                let main_outputs1 = {
+                    let _task = ittapi::Task::begin(&itt_domain, #node_name);
+                    self.#node_member.cycle(
+                        #node_module::CycleContext::new(
+                            #context_initializers
+                        ),
+                    )
+                    .wrap_err(#cycle_error_message)?
+                };
+                let b = serde_json::to_value(&self.#node_member).unwrap();
+
+                use serde::Deserialize;
+                #node_module::#node_type::deserialize_in_place(a, &mut self.#node_member).unwrap();
                 let main_outputs = {
                     let _task = ittapi::Task::begin(&itt_domain, #node_name);
                     self.#node_member.cycle(
@@ -665,6 +691,8 @@ fn generate_node_execution(
                     )
                     .wrap_err(#cycle_error_message)?
                 };
+                let c = serde_json::to_value(&self.#node_member).unwrap();
+                #check
                 #database_updates
             }
             else {
@@ -919,7 +947,20 @@ fn generate_database_updates(
                     },
                     RecordingGeneration::Skip => Default::default(),
                 };
+                let node_name = &node.name;
+                let check = (matches!(recording_generation, RecordingGeneration::Skip)).then(|| 
+                    quote! {
+                        let a = serde_json::to_value(&main_outputs1.#name.value).unwrap();
+                        let b = serde_json::to_value(&main_outputs.#name.value).unwrap();
+                        if a != b {
+                            println!("Output repro error in {}", #node_name);
+                            println!("{b:?}");
+                            println!("{c:?}");
+                        }
+                    }
+                );
                 let setter = quote! {
+                    #check
                     #recording_serialization
                     own_database_reference.main_outputs.#name = main_outputs.#name.value;
                 };

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ops::Range};
+use std::{collections::HashSet, hash::BuildHasherDefault, ops::Range};
 
 use color_eyre::Result;
 use context_attribute::context;
@@ -79,7 +79,7 @@ impl LineDetection {
         if context.lines_in_image.is_subscribed() {
             image_lines.points = line_points.clone();
         }
-        let mut ransac = Ransac::new(line_points);
+        let mut ransac = Ransac::new_with_seed(line_points, 0);
         let mut lines_in_robot = Vec::new();
         for _ in 0..*context.maximum_number_of_lines {
             if ransac.unused_points.len() < *context.minimum_number_of_points_on_line {
@@ -246,7 +246,10 @@ fn filter_segments_for_lines(
     maximum_projected_segment_length: f32,
     check_edge_gradient: bool,
     gradient_alignment: f32,
-) -> (Vec<Point2<f32>>, HashSet<Point2<u16>>) {
+) -> (
+    Vec<Point2<f32>>,
+    HashSet<Point2<u16>, BuildHasherDefault<fxhash::FxHasher64>>,
+) {
     let (line_points, used_vertical_filtered_segments) = filtered_segments
         .scan_grid
         .vertical_scan_lines
