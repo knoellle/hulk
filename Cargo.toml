@@ -51,6 +51,8 @@ members = [
   "tools/depp",
   "tools/fanta",
   "tools/hula/types",
+  "tools/localizer",
+  "tools/mio",
   "tools/pepsi",
   "tools/twix",
 ]
@@ -198,7 +200,13 @@ walkdir = "2.3.2"
 walking_engine = { path = "crates/walking_engine" }
 watch = "0.2.3"
 webots = { version = "0.8.0" }
-zbus = { version = "3.7.0" }
+zbus = { version = "3.7.0", features = ["tokio"] }
+bevy = {version = "0.11.3", features = ["dynamic_linking"]}
+bevy-inspector-egui = "0.20.0"
+bevy_egui = "0.22.0"
+bevy_obj = "0.11"
+bevy_asset_loader = "0.17.0"
+urdf-rs = "0.7.3"
 
 [patch.crates-io]
 # Pinned to forked serde version since https://github.com/serde-rs/serde/pull/2513 is not merged
