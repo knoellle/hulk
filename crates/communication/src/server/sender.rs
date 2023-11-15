@@ -10,6 +10,7 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 use crate::messages::Response;
 
@@ -59,7 +60,11 @@ pub async fn sender(
             })),
         };
 
-        match writer.send(message).await {
+        match writer
+            .send(message)
+            .instrument(tracing::info_span!("sender tcp send"))
+            .await
+        {
             Ok(_) => {}
             Err(error) => {
                 error_sender

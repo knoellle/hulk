@@ -41,6 +41,7 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
 fn main() -> Result<()> {
     setup_logger()?;
     install()?;
+    console_subscriber::init();
     let framework_parameters_path = args()
         .nth(1)
         .unwrap_or("etc/parameters/framework.json".to_string());

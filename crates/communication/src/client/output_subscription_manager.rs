@@ -6,6 +6,7 @@ use tokio::{
     spawn,
     sync::{broadcast, mpsc, oneshot},
 };
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -174,6 +175,7 @@ pub async fn output_subscription_manager(
                                         .send(SubscriberMessage::Update {
                                             value: data.clone(),
                                         })
+                                        .instrument(tracing::info_span!("sending update"))
                                         .await
                                     {
                                         error!("{error}");
@@ -189,6 +191,9 @@ pub async fn output_subscription_manager(
                                             .send(SubscriberMessage::UpdateBinary {
                                                 data: image.clone(),
                                             })
+                                            .instrument(tracing::info_span!(
+                                                "sending update binary"
+                                            ))
                                             .await
                                         {
                                             error!("{error}");
@@ -223,6 +228,7 @@ pub async fn output_subscription_manager(
                             for sender in senders.values() {
                                 if let Err(error) = sender
                                     .send(SubscriberMessage::UpdateBinary { data: data.clone() })
+                                    .instrument(tracing::info_span!("sending update binary2"))
                                     .await
                                 {
                                     error!("{error}");
@@ -255,12 +261,19 @@ async fn query_output_fields(
         })
         .await?;
     let request = Request::Outputs(OutputsRequest::GetFields { id: message_id });
-    requester.send(request).await?;
+    requester
+        .send(request)
+        .instrument(tracing::info_span!("sending get fields request"))
+        .await?;
     spawn(async move {
         let response = response_receiver.await.unwrap();
         match response {
             Response::Fields(fields) => {
-                if let Err(error) = manager.send(Message::UpdateFields { fields }).await {
+                if let Err(error) = manager
+                    .send(Message::UpdateFields { fields })
+                    .instrument(tracing::info_span!("sending get fields response"))
+                    .await
+                {
                     error!("{error}");
                 };
             }
@@ -298,6 +311,7 @@ async fn add_subscription(
                     responder,
                     requester,
                 )
+                .instrument(tracing::info_span!("awaiting subscribe"))
                 .await
                 {
                     manager
@@ -340,12 +354,19 @@ async fn subscribe(
         path,
         format,
     });
-    if let Err(error) = requester.send(request).await {
+    if let Err(error) = requester
+        .send(request)
+        .instrument(tracing::info_span!("sending subscribe"))
+        .await
+    {
         error!("{error}");
         return None;
     }
     spawn(async move {
-        let response = response_receiver.await.unwrap();
+        let response = response_receiver
+            .instrument(tracing::info_span!("awaiting subscribe response"))
+            .await
+            .unwrap();
         let result = match response {
             Response::Subscribe(result) => result,
             response => return error!("unexpected response: {response:?}"),
@@ -355,7 +376,11 @@ async fn subscribe(
             Err(error) => SubscriberMessage::SubscriptionFailure { info: error },
         };
         for sender in subscribers {
-            if let Err(error) = sender.send(message.clone()).await {
+            if let Err(error) = sender
+                .send(message.clone())
+                .instrument(tracing::info_span!("sending subscribe response"))
+                .await
+            {
                 error!("{error}");
             }
         }

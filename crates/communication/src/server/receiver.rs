@@ -6,6 +6,7 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 use crate::{
     messages::{OutputsRequest, ParametersRequest, Request, Response},
@@ -115,6 +116,7 @@ async fn handle_message(
                             request,
                             client,
                         }))
+                        .instrument(tracing::info_span!("sending to outputs_sender"))
                         .await
                         .expect("receiver should always wait for all senders");
                 }
@@ -122,6 +124,7 @@ async fn handle_message(
                 Request::Parameters(request) => {
                     parameters_sender
                         .send(ClientRequest { request, client })
+                        .instrument(tracing::info_span!("sending to parameters_sender"))
                         .await
                         .expect("receiver should always wait for all senders");
                 }
