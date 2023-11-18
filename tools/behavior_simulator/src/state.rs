@@ -26,11 +26,6 @@ use types::{
 
 use crate::{robot::Robot, structs::control::AdditionalOutputs};
 
-pub enum Event {
-    Cycle,
-    Goal,
-}
-
 #[derive(Default, Clone, Deserialize, Serialize, SerializeHierarchy)]
 pub struct Ball {
     pub position: Point2<f32>,
@@ -49,19 +44,17 @@ pub struct State {
 }
 
 impl State {
-    pub fn cycle(&mut self, time_step: Duration) -> Result<Vec<Event>> {
+    pub fn cycle(&mut self, time_step: Duration) -> Result<()> {
         let now = UNIX_EPOCH + self.time_elapsed;
-
-        let mut events = vec![Event::Cycle];
 
         self.move_robots(time_step);
         self.cycle_robots(now)?;
-        events.extend(self.move_ball(time_step));
+        self.move_ball(time_step);
 
         self.time_elapsed += time_step;
         self.cycle_count += 1;
 
-        Ok(events)
+        Ok(())
     }
 
     fn move_robots(&mut self, time_step: Duration) {
@@ -249,17 +242,11 @@ impl State {
         Ok(())
     }
 
-    fn move_ball(&mut self, time_step: Duration) -> Vec<Event> {
-        let mut events = Vec::new();
+    fn move_ball(&mut self, time_step: Duration) {
         if let Some(ball) = self.ball.as_mut() {
             ball.position += ball.velocity * time_step.as_secs_f32();
             ball.velocity *= 0.98;
-
-            if ball.position.x.abs() > 4.5 && ball.position.y < 0.75 {
-                events.push(Event::Goal);
-            }
         }
-        events
     }
 
     pub fn spawn_robot(&mut self, player_number: PlayerNumber) -> Result<&mut Robot> {
