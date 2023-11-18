@@ -24,11 +24,7 @@ use types::{
     support_foot::Side,
 };
 
-use crate::{
-    cycler::Database,
-    robot::Robot,
-    structs::{control::AdditionalOutputs, Parameters},
-};
+use crate::{robot::Robot, structs::control::AdditionalOutputs};
 
 pub enum Event {
     Cycle,
@@ -266,47 +262,14 @@ impl State {
         events
     }
 
-    pub fn get_lua_state(&self) -> LuaState {
-        LuaState {
-            time_elapsed: self.time_elapsed.as_secs_f32(),
-            cycle_count: self.cycle_count,
-            // TODO: Expose robot data to lua again
-            // robots: self.robots.iter().map(LuaRobot::new).collect(),
-            robots: Default::default(),
-            ball: self.ball.clone(),
-            messages: self.messages.clone(),
-
-            finished: self.finished,
-
-            game_controller_state: self.game_controller_state,
-            filtered_game_state: self.filtered_game_state,
-        }
-    }
-
     pub fn spawn_robot(&mut self, player_number: PlayerNumber) -> Result<&mut Robot> {
         self.robots
             .insert(player_number, Robot::try_new(player_number)?);
 
-        Ok(self.robots.get_mut(&player_number).expect("robot was inserted just now and vanished"))
-    }
-
-    pub fn load_lua_state(&mut self, lua_state: LuaState) -> Result<()> {
-        self.ball = lua_state.ball;
-        self.cycle_count = lua_state.cycle_count;
-        for lua_robot in lua_state.robots {
-            let mut robot = Robot::try_new(lua_robot.parameters.player_number)
-                .expect("Creating dummy robot should never fail");
-            robot.database = lua_robot.database;
-            robot.parameters = lua_robot.parameters;
-            self.robots.insert(robot.parameters.player_number, robot);
-        }
-
-        self.finished = lua_state.finished;
-
-        self.game_controller_state = lua_state.game_controller_state;
-        self.filtered_game_state = lua_state.filtered_game_state;
-
-        Ok(())
+        Ok(self
+            .robots
+            .get_mut(&player_number)
+            .expect("robot was inserted just now and vanished"))
     }
 }
 
@@ -342,33 +305,6 @@ impl Default for State {
             finished: false,
             game_controller_state,
             filtered_game_state: FilteredGameState::Initial,
-        }
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct LuaState {
-    pub time_elapsed: f32,
-    pub cycle_count: usize,
-    pub robots: Vec<LuaRobot>,
-    pub ball: Option<Ball>,
-    pub messages: Vec<(PlayerNumber, HulkMessage)>,
-    pub finished: bool,
-    pub game_controller_state: GameControllerState,
-    pub filtered_game_state: FilteredGameState,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct LuaRobot {
-    database: Database,
-    parameters: Parameters,
-}
-
-impl LuaRobot {
-    pub fn new(robot: &Robot) -> Self {
-        Self {
-            database: robot.database.clone(),
-            parameters: robot.parameters.clone(),
         }
     }
 }
