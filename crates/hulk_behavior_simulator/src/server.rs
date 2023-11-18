@@ -1,15 +1,7 @@
-use std::{
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::time::Duration;
 
-use crate::{
-    cyclers::control::Database,
-    robot::to_player_number,
-    simulator::{Frame, Simulator},
-    state::Ball,
-};
-use color_eyre::{eyre::bail, owo_colors::OwoColorize, Result};
+use crate::{cyclers::control::Database, robot::to_player_number, simulator::Frame, state::Ball};
+use color_eyre::{eyre::bail, Result};
 use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use serde::{Deserialize, Serialize};
 use tokio::{net::ToSocketAddrs, select, time::interval};
@@ -79,9 +71,9 @@ async fn timeline_server(
 }
 
 pub fn run(
+    frames: Vec<Frame>,
     addresses: Option<impl ToSocketAddrs + Send + Sync + 'static>,
     keep_running: CancellationToken,
-    scenario_file: impl AsRef<Path>,
 ) -> Result<()> {
     let communication_server = communication::server::Runtime::<Parameters>::start(
         addresses,
@@ -111,18 +103,6 @@ pub fn run(
         control_reader,
         subscribed_control_writer,
     );
-
-    let mut simulator = Simulator::try_new()?;
-    simulator.execute_script(scenario_file)?;
-
-    let start = Instant::now();
-    if let Err(error) = simulator.run() {
-        eprintln!("{}", format!("{:#?}", error).bright_red())
-    }
-    let duration = Instant::now() - start;
-    println!("Took {:.2} seconds", duration.as_secs_f32());
-
-    let frames = simulator.frames;
 
     let runtime = tokio::runtime::Runtime::new()?;
     {
