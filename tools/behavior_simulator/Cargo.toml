@@ -21,7 +21,6 @@ geometry = { workspace = true }
 hardware = { workspace = true }
 ittapi = { workspace = true }
 log = { workspace = true }
-mlua = { workspace = true }
 nalgebra = { workspace = true }
 parameters = { workspace = true }
 parking_lot = { workspace = true }

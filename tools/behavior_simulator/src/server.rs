@@ -1,16 +1,7 @@
-use std::{
-    path::Path,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
-use crate::{
-    cycler::Database,
-    robot::to_player_number,
-    simulator::{Frame, Simulator},
-    state::Ball,
-};
-use color_eyre::{eyre::bail, owo_colors::OwoColorize, Result};
+use crate::{cycler::Database, robot::to_player_number, simulator::Frame, state::Ball};
+use color_eyre::{eyre::bail, Result};
 use framework::{multiple_buffer_with_slots, Reader, Writer};
 use serde::{Deserialize, Serialize};
 use serialize_hierarchy::SerializeHierarchy;
@@ -87,9 +78,9 @@ async fn timeline_server(
 }
 
 pub fn run(
+    frames: Vec<Frame>,
     addresses: Option<impl ToSocketAddrs + Send + Sync + 'static>,
     keep_running: CancellationToken,
-    scenario_file: impl AsRef<Path>,
 ) -> Result<()> {
     let parameter_slots = 3; // 2 for communication writer + 1 reader for timeline_server
     let communication_server = communication::server::Runtime::<Parameters>::start(
@@ -127,18 +118,6 @@ pub fn run(
         control_reader,
         subscribed_control_writer,
     );
-
-    let mut simulator = Simulator::try_new()?;
-    simulator.execute_script(scenario_file)?;
-
-    let start = Instant::now();
-    if let Err(error) = simulator.run() {
-        eprintln!("{}", error.bright_red())
-    }
-    let duration = Instant::now() - start;
-    println!("Took {:.2} seconds", duration.as_secs_f32());
-
-    let frames = simulator.frames;
 
     let runtime = tokio::runtime::Runtime::new()?;
     {

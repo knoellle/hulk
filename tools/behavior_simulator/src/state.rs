@@ -283,6 +283,13 @@ impl State {
         }
     }
 
+    pub fn spawn_robot(&mut self, player_number: PlayerNumber) -> Result<&mut Robot> {
+        self.robots
+            .insert(player_number, Robot::try_new(player_number)?);
+
+        Ok(self.robots.get_mut(&player_number).expect("robot was inserted just now and vanished"))
+    }
+
     pub fn load_lua_state(&mut self, lua_state: LuaState) -> Result<()> {
         self.ball = lua_state.ball;
         self.cycle_count = lua_state.cycle_count;

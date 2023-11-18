@@ -591,7 +591,6 @@ dependencies = [
  "hardware",
  "ittapi",
  "log",
- "mlua",
  "nalgebra",
  "parameters",
  "parking_lot",
