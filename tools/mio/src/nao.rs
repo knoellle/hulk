@@ -560,14 +560,14 @@ fn update_ball(
     let ball_radius = parameters.field_dimensions.ball_radius;
     for mut nao in naos.iter_mut() {
         nao.ball_position.update();
+        nao.robot_to_ground.update();
+        nao.ground_to_field.update();
+        let ground_to_field = nao.ground_to_field.value.flatten().unwrap_or_default();
         let (mut transform, mut visibility) = balls.get_mut(nao.ball).unwrap();
         match nao.ball_position.value {
             Some(Some(ball_position)) => {
-                *transform = Transform::from_xyz(
-                    ball_position.position.x,
-                    ball_position.position.y,
-                    ball_radius,
-                );
+                let abs_ball = ground_to_field * ball_position.position;
+                *transform = Transform::from_xyz(abs_ball.x, abs_ball.y, ball_radius);
                 *visibility = Visibility::Visible;
             }
             _ => {
