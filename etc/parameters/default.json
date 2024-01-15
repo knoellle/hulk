@@ -103,6 +103,7 @@
       "maximum_number_of_lines": 10,
       "maximum_projected_segment_length": 0.3,
       "minimum_number_of_points_on_line": 5,
+      "maximum_merge_gap": 30,
       "margin_for_point_inclusion": 0.025
     },
     "vision_bottom": {
@@ -121,6 +122,7 @@
       "maximum_number_of_lines": 10,
       "maximum_projected_segment_length": 0.3,
       "minimum_number_of_points_on_line": 4,
+      "maximum_merge_gap": 30,
       "margin_for_point_inclusion": 0.025
     }
   },
