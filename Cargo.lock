@@ -5413,6 +5413,7 @@ dependencies = [
  "projection",
  "rand",
  "serde",
+ "serde_json",
  "types",
 ]
 

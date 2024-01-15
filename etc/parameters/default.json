@@ -1,4 +1,6 @@
 {
+  "fake_data_path": "/home/mystery/2022-07-16-shit-data/data2_/instanceBottom.index",
+  "fake_data_index": 2421,
   "whistle_detection": {
     "detection_band": {
       "start": 2000,

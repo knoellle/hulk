@@ -20,6 +20,8 @@ pub struct CreationContext {
 #[context]
 pub struct CycleContext {
     hardware_interface: HardwareInterface,
+    fake_data_path: Parameter<String, "fake_data_path">,
+    fake_data_index: Parameter<usize, "fake_data_index">,
     camera_position: Parameter<CameraPosition, "image_receiver.$cycler_instance.camera_position">,
     last_cycle_time: AdditionalOutput<Duration, "cycle_time">,
 }
@@ -47,6 +49,12 @@ impl ImageReceiver {
         let image = context
             .hardware_interface
             .read_from_camera(*context.camera_position)?;
+        let image = YCbCr422Image::load_from_444_png(format!(
+            "{}{}.444.png",
+            context.fake_data_path, context.fake_data_index
+        ))
+        .unwrap();
+        // let image = YCbCr422Image::load_from_444_png("/tmp/state16.instanceTop.index1721.444.png").unwrap();
         self.last_cycle_start = context.hardware_interface.get_now();
 
         Ok(MainOutputs {

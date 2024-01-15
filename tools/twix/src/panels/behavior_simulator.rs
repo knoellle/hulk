@@ -35,7 +35,7 @@ impl Panel for BehaviorSimulatorPanel {
             nao,
             update_notify_receiver,
 
-            selected_frame: 0,
+            selected_frame: 110,
             selected_robot: 0,
             playing: false,
             playing_start: 0.0,
@@ -62,18 +62,9 @@ impl Widget for &mut BehaviorSimulatorPanel {
                     if ui
                         .add_sized(
                             ui.available_size(),
-                            Slider::new(
-                                &mut frame,
-                                0..=self
-                                    .frame_count
-                                    .get_latest()
-                                    .ok()
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(1) as usize
-                                    - 1,
-                            )
-                            .smart_aim(false)
-                            .text("Frame"),
+                            Slider::new(&mut frame, 110..=9082)
+                                .smart_aim(false)
+                                .text("Frame"),
                         )
                         .changed()
                     {
@@ -110,9 +101,9 @@ impl Widget for &mut BehaviorSimulatorPanel {
             new_frame = Some(new_frame.unwrap_or(self.selected_frame) + 10);
         }
         if let Some(new_frame) = new_frame {
-            self.selected_frame = new_frame % self.frame_count.require_latest().unwrap_or(1);
+            self.selected_frame = new_frame % 9082;
             self.nao
-                .update_parameter_value("selected_frame", self.selected_frame.into());
+                .update_parameter_value("fake_data_index", self.selected_frame.into());
         }
         response
     }
