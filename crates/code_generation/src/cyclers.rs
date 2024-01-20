@@ -450,6 +450,7 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
                 {
                     let own_subscribed_outputs = self.own_subscribed_outputs_reader.next();
                     let parameters = self.parameters_reader.next();
+                    let _task = ittapi::Task::begin(&itt_domain, "setup_nodes");
                     #(#setup_node_executions)*
                 }
 
@@ -460,6 +461,7 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers) -> TokenStream {
                     let parameters = self.parameters_reader.next();
                     #lock_readers
                     #cross_input_recordings
+                    let _task = ittapi::Task::begin(&itt_domain, "cycle_nodes");
                     #(#cycle_node_executions)*
                 }
 
@@ -652,22 +654,29 @@ fn generate_node_execution(
     quote! {
         {
             if enable_recording {
+                let _task = ittapi::Task::begin(&itt_domain, "recording");
                 bincode::serialize_into(&mut recording_frame, &self.#node_member).wrap_err(#recording_error_message)?;
             }
             #[allow(clippy::needless_else)]
             if #are_required_inputs_some {
                 let main_outputs = {
-                    let _task = ittapi::Task::begin(&itt_domain, #node_name);
-                    self.#node_member.cycle(
+                    let cycle_context = {
+                        let _task = ittapi::Task::begin(&itt_domain, "context_creation2");
                         #node_module::CycleContext::new(
                             #context_initializers
-                        ),
+                        )
+                    };
+                    let _task = ittapi::Task::begin(&itt_domain, #node_name);
+                    self.#node_member.cycle(
+                        cycle_context
                     )
                     .wrap_err(#cycle_error_message)?
                 };
+                let _task = ittapi::Task::begin(&itt_domain, "database_updates");
                 #database_updates
             }
             else {
+                let _task = ittapi::Task::begin(&itt_domain, "database_updates");
                 #database_updates_from_defaults
             }
         }
