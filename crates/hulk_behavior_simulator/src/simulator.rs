@@ -22,11 +22,9 @@ pub trait Scenario {
     fn run(&mut self) -> Result<()> {
         let mut state = State::default();
         self.init(&mut state)?;
-        let mut recorder = Recorder::default();
         let start = SystemTime::now();
         while self.should_continue(&mut state) {
             self.cycle(&mut state)?;
-            recorder.record(&mut state);
         }
         let duration = start.elapsed().expect("time ran backwards");
         println!("Took {:.2}s", duration.as_secs_f32());
@@ -36,8 +34,6 @@ pub trait Scenario {
             cycles,
             cycles as f32 / duration.as_secs_f32()
         );
-
-        server::run(recorder.frames, Some("[::]:1337"), CancellationToken::new())?;
 
         Ok(())
     }
@@ -52,8 +48,8 @@ pub struct Recorder {
     pub frames: Vec<Frame>,
 }
 
-impl Recorder {
-    pub fn record(&mut self, state: &mut State) {
+impl Plugin for Recorder {
+    fn cycle(&mut self, state: &mut State) -> Result<()> {
         let mut robots = Players::<Option<Database>>::default();
         for (player_number, robot) in &state.robots {
             robots[*player_number] = Some(robot.database.clone())
@@ -62,5 +58,72 @@ impl Recorder {
             robots,
             ball: state.ball.clone(),
         });
+
+        Ok(())
+    }
+
+    fn finish(&mut self, _state: &mut State) -> Result<()> {
+        server::run(
+            std::mem::take(&mut self.frames),
+            Some("[::]:1337"),
+            CancellationToken::new(),
+        )
+    }
+}
+
+pub trait Plugin {
+    fn init(&mut self, _state: &mut State) -> Result<()> {
+        Ok(())
+    }
+
+    fn cycle(&mut self, state: &mut State) -> Result<()>;
+
+    fn finish(&mut self, _state: &mut State) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct Simulator {
+    state: State,
+    plugins: Vec<Box<dyn Plugin>>,
+}
+
+impl Simulator {
+    pub fn register(&mut self, mut plugin: impl Plugin + 'static) -> Result<()> {
+        plugin.init(&mut self.state)?;
+        self.plugins.push(Box::new(plugin));
+        Ok(())
+    }
+
+    pub fn cycle(&mut self) -> Result<()> {
+        for plugin in &mut self.plugins {
+            plugin.cycle(&mut self.state)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn run(&mut self) -> Result<()> {
+        let start = SystemTime::now();
+
+        while !self.state.finished {
+            self.cycle()?;
+        }
+
+        let duration = start.elapsed().expect("time ran backwards");
+        println!("Took {:.2}s", duration.as_secs_f32());
+        let cycles = self.state.cycle_count;
+        println!(
+            "{} cycles, {:.2} cycles/s",
+            cycles,
+            cycles as f32 / duration.as_secs_f32()
+        );
+
+        for plugin in &mut self.plugins {
+            plugin.finish(&mut self.state)?;
+        }
+
+        Ok(())
     }
 }
