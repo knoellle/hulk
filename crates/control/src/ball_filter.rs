@@ -62,6 +62,8 @@ pub struct MainOutputs {
     pub ball_position: MainOutput<Option<BallPosition<Ground>>>,
     pub removed_ball_positions: MainOutput<Vec<Point2<Ground>>>,
     pub hypothetical_ball_positions: MainOutput<Vec<HypotheticalBallPosition<Ground>>>,
+    pub balls_top: MainOutput<Vec<(SystemTime, Vec<Ball>)>>,
+    pub balls_bottom: MainOutput<Vec<(SystemTime, Vec<Ball>)>>,
 }
 
 impl BallFilter {
@@ -211,10 +213,41 @@ impl BallFilter {
             })
             .collect::<Vec<_>>();
 
+        let balls_top: Vec<(SystemTime, Vec<Ball>)> = context
+            .balls_top
+            .persistent
+            .iter()
+            .map(|(detection_time, balls)| {
+                let balls = balls
+                    .iter()
+                    .filter_map(|data| data.as_ref())
+                    .flat_map(|data| data.iter())
+                    .cloned()
+                    .collect();
+                (*detection_time, balls)
+            })
+            .collect();
+        let balls_bottom: Vec<(SystemTime, Vec<Ball>)> = context
+            .balls_bottom
+            .persistent
+            .iter()
+            .map(|(detection_time, balls)| {
+                let balls = balls
+                    .iter()
+                    .filter_map(|data| data.as_ref())
+                    .flat_map(|data| data.iter())
+                    .cloned()
+                    .collect();
+                (*detection_time, balls)
+            })
+            .collect();
+
         Ok(MainOutputs {
             ball_position: ball_position.into(),
             removed_ball_positions: removed_ball_positions.into(),
             hypothetical_ball_positions: hypothetical_ball_positions.into(),
+            balls_top: balls_top.into(),
+            balls_bottom: balls_bottom.into(),
         })
     }
 

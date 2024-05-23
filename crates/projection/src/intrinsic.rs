@@ -4,7 +4,15 @@ use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use serde::{Deserialize, Serialize};
 
 #[derive(
-    Clone, Debug, PartialEq, Serialize, Deserialize, PathSerialize, PathDeserialize, PathIntrospect,
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    PathSerialize,
+    PathDeserialize,
+    PathIntrospect,
 )]
 pub struct Intrinsic {
     focals: nalgebra::Vector2<f32>,

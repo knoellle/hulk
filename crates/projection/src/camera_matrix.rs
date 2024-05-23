@@ -12,6 +12,7 @@ use crate::{
 #[derive(
     Clone,
     Debug,
+    Copy,
     Default,
     Deserialize,
     PartialEq,

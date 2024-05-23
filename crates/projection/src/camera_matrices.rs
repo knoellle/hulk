@@ -9,7 +9,15 @@ use types::camera_position::CameraPosition;
 use crate::camera_matrix::CameraMatrix;
 
 #[derive(
-    Clone, Debug, Default, Deserialize, Serialize, PathSerialize, PathDeserialize, PathIntrospect,
+    Copy,
+    Clone,
+    Debug,
+    Default,
+    Deserialize,
+    Serialize,
+    PathSerialize,
+    PathDeserialize,
+    PathIntrospect,
 )]
 pub struct CameraMatrices {
     pub top: CameraMatrix,

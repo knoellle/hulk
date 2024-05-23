@@ -19,7 +19,7 @@ pub fn spawn_worker(
             loop {
                 select! {
                     _ = parameters_changed.notified() => {}
-                    _ = sleep(Duration::from_secs(1)) => {}
+                    // _ = sleep(Duration::from_secs(1)) => {}
                     result = time.changed() => {
                         if result.is_err() {
                             // channel closed, quit thread

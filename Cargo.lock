@@ -2972,6 +2972,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "hulk_delayer"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "code_generation",
+ "color-eyre",
+ "control",
+ "coordinate_systems",
+ "energy_optimization",
+ "framework",
+ "geometry",
+ "hardware",
+ "hulk_manifest",
+ "ittapi",
+ "linear_algebra",
+ "nalgebra",
+ "ordered-float",
+ "parameters",
+ "path_serde",
+ "projection",
+ "serde",
+ "source_analyzer",
+ "spl_network_messages",
+ "tokio",
+ "types",
+ "walking_engine",
+]
+
+[[package]]
 name = "hulk_imagine"
 version = "0.1.0"
 dependencies = [

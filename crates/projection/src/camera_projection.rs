@@ -7,6 +7,7 @@ use crate::intrinsic::Intrinsic;
 
 #[derive(
     Clone,
+    Copy,
     Debug,
     Default,
     Deserialize,
@@ -40,6 +41,7 @@ impl<From> CameraProjection<From> {
 }
 
 #[derive(
+    Copy,
     Clone,
     Debug,
     Default,

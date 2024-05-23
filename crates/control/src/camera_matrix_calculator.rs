@@ -145,7 +145,7 @@ fn project_penalty_area_on_images(
     ])
 }
 
-fn head_to_camera(
+pub fn head_to_camera(
     extrinsic_rotation: nalgebra::Vector3<f32>,
     camera_pitch: f32,
     head_to_camera: Vector3<Head>,
