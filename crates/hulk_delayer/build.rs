@@ -5,7 +5,9 @@ use source_analyzer::{pretty::to_string_pretty, structs::Structs};
 
 fn main() -> Result<()> {
     let mut cyclers = collect_hulk_cyclers()?;
-    cyclers.cyclers.retain(|cycler| cycler.name == "Control");
+    cyclers
+        .cyclers
+        .retain(|cycler| ["Control", "Vision"].contains(&cycler.name.as_str()));
 
     for path in cyclers.watch_paths() {
         println!("cargo:rerun-if-changed={}", path.display());

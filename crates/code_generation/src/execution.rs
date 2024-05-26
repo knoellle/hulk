@@ -1,4 +1,4 @@
-use std::iter::repeat;
+use std::iter::{once, repeat};
 
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
@@ -247,12 +247,20 @@ fn generate_replayer_token_streams(
             })
             .collect();
 
-        let reader_identifiers = reader_tokens.iter().map(|(reader, _cycler)| reader);
-        let reader_fields = reader_tokens.iter().map(|(reader, cycler)| {
-            quote! {
-                #reader: framework::Reader<crate::cyclers::#cycler::Database>,
-            }
-        });
+        let reader_identifiers = reader_tokens
+            .iter()
+            .map(|(reader, _cycler)| reader.clone())
+            .chain(once(format_ident!("parameters_reader")));
+        let reader_fields = reader_tokens
+            .iter()
+            .map(|(reader, cycler)| {
+                quote! {
+                    #reader: framework::Reader<crate::cyclers::#cycler::Database>,
+                }
+            })
+            .chain(once(quote! {
+                parameters_reader: framework::Reader<crate::structs::Parameters>,
+            }));
         let reader_accessors = reader_tokens.iter().map(|(reader, cycler)| {
             quote! {
                 #[allow(unused)]
@@ -260,7 +268,12 @@ fn generate_replayer_token_streams(
                     self.#reader.clone()
                 }
             }
-        });
+        }).chain(once(quote! {
+                #[allow(unused)]
+                pub(crate) fn parameters_reader(&self) -> framework::Reader<crate::structs::Parameters> {
+                    self.parameters_reader.clone()
+                }
+        }));
 
         ReplayerTokenStreams {
             fields: quote! {

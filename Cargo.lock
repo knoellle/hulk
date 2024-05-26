@@ -2997,6 +2997,7 @@ dependencies = [
  "spl_network_messages",
  "tokio",
  "types",
+ "vision",
  "walking_engine",
 ]
 

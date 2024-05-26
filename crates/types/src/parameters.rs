@@ -357,7 +357,15 @@ pub struct ObstacleFilterParameters {
 }
 
 #[derive(
-    Clone, Debug, Default, Deserialize, Serialize, PathSerialize, PathDeserialize, PathIntrospect,
+    Copy,
+    Clone,
+    Debug,
+    Default,
+    Deserialize,
+    Serialize,
+    PathSerialize,
+    PathDeserialize,
+    PathIntrospect,
 )]
 pub struct CameraMatrixParameters {
     pub camera_pitch: f32,

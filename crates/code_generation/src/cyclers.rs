@@ -88,6 +88,7 @@ fn generate_database_struct() -> TokenStream {
     quote! {
         #[derive(
             Default,
+            Clone,
             serde::Serialize,
             serde::Deserialize,
             path_serde::PathSerialize,

@@ -16,6 +16,7 @@ pub struct CandidateEvaluation {
 }
 
 #[derive(
+    Copy,
     Clone,
     Debug,
     Deserialize,

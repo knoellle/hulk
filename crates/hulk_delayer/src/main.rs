@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+#![feature(btree_cursors)]
 use core::f32;
 use std::time::SystemTime;
 
@@ -34,7 +35,6 @@ pub trait HardwareInterface:
 }
 
 include!(concat!(env!("OUT_DIR"), "/generated_code.rs"));
-const INSTANCE_NAME: &str = "Control";
 
 struct ImageExtractorHardwareInterface {
     ids: Ids,

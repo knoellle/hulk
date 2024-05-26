@@ -17,14 +17,15 @@ hardware = { workspace = true }
 ittapi = {  workspace = true }
 linear_algebra = { workspace = true }
 nalgebra = { workspace = true }
+ordered-float = { workspace = true }
 parameters = { workspace = true }
 path_serde = { workspace = true }
 projection = { workspace = true }
 serde = { workspace = true }
 spl_network_messages = { workspace = true }
-ordered-float = { workspace = true }
 tokio = { workspace = true }
 types = { workspace = true }
+vision = { workspace = true }
 walking_engine = { workspace = true }
 
 [build-dependencies]
