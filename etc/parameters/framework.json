@@ -4,6 +4,7 @@
   "parameters_directory": "etc/parameters",
   "recording_intervals": {
     "Control": 1,
+    "VisionBottom": 1,
     "VisionTop": 1
   }
 }

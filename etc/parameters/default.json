@@ -1,4 +1,5 @@
 {
+  "imu_delay": 0.05,
   "object_detection": {
     "object_detection_top": {
       "enable": false,
@@ -190,10 +191,10 @@
         "first_half_opponent_half_away_own_goal": 0.38
       },
       "green_chromaticity_threshold": {
-        "first_half_own_half_towards_own_goal": 0.5,
-        "first_half_own_half_away_own_goal": 0.5,
-        "first_half_opponent_half_towards_own_goal": 0.5,
-        "first_half_opponent_half_away_own_goal": 0.5
+        "first_half_own_half_towards_own_goal": 0.35,
+        "first_half_own_half_away_own_goal": 0.35,
+        "first_half_opponent_half_towards_own_goal": 0.35,
+        "first_half_opponent_half_away_own_goal": 0.35
       },
       "green_luminance_threshold": {
         "first_half_own_half_towards_own_goal": 25.0,
@@ -388,7 +389,11 @@
     "sensor_angle": 0.35
   },
   "step_planner": {
-    "injected_step": null,
+    "injected_step": {
+      "forward": 0.0,
+      "left": 0.0,
+      "turn": 0.0
+    },
     "max_step_size": {
       "forward": 0.065,
       "left": 0.13,

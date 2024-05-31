@@ -157,11 +157,11 @@ impl<Frame> TwixPainter<Frame> {
             .add(Shape::Path(PathShape::line(points, stroke)));
     }
 
-    pub fn ball(&self, position: Point2<Frame>, radius: f32) {
+    pub fn ball(&self, position: Point2<Frame>, radius: f32, color: Color32) {
         self.circle(
             position,
             radius,
-            Color32::WHITE,
+            color,
             Stroke {
                 width: radius / 8.0,
                 color: Color32::BLACK,

@@ -43,6 +43,7 @@ pub fn collect_hulk_cyclers() -> Result<Cyclers, Error> {
                 nodes: vec![
                     "control::active_vision",
                     "control::ball_filter",
+                    "control::ball_filter_sync",
                     "control::ball_state_composer",
                     "control::behavior::node",
                     "control::button_filter",

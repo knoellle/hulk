@@ -15,6 +15,7 @@ use crate::{
 pub struct BallPosition {
     ground_to_field: ValueBuffer,
     ball_position: ValueBuffer,
+    ball_position2: ValueBuffer,
 }
 
 impl Layer<Field> for BallPosition {
@@ -26,10 +27,13 @@ impl Layer<Field> for BallPosition {
         ground_to_field.reserve(100);
         let ball_position =
             nao.subscribe_output(CyclerOutput::from_str("Control.main.ball_position").unwrap());
+        let ball_position2 = nao
+            .subscribe_output(CyclerOutput::from_str("Control.main.ball_position_sync").unwrap());
         ball_position.reserve(100);
         Self {
             ground_to_field,
             ball_position,
+            ball_position2,
         }
     }
 
@@ -64,6 +68,18 @@ impl Layer<Field> for BallPosition {
             painter.ball(
                 ground_to_field.unwrap_or_default() * ball.position,
                 field_dimensions.ball_radius,
+                Color32::WHITE,
+            );
+        }
+        if let (Some(ball), Some(ground_to_field)) = (
+            self.ball_position2
+                .parse_latest::<Option<types::ball_position::BallPosition<Ground>>>()?,
+            ground_to_fields.first(),
+        ) {
+            painter.ball(
+                ground_to_field.unwrap_or_default() * ball.position,
+                field_dimensions.ball_radius,
+                Color32::BLUE,
             );
         }
         Ok(())

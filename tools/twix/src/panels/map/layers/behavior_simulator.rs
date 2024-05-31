@@ -113,7 +113,7 @@ impl Layer<Field> for BehaviorSimulator {
         }
 
         if let Ok(ball_position) = self.ball.parse_latest::<Point2<Field>>() {
-            painter.ball(ball_position, 0.05);
+            painter.ball(ball_position, 0.05, Color32::WHITE);
         }
 
         Ok(())

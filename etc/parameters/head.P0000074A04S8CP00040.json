@@ -14,5 +14,15 @@
         -0.7101461291313171
       ]
     }
+  },
+  "field_color_detection": {
+    "vision_top": {
+      "blue_chromaticity_threshold": {
+        "first_half_own_half_towards_own_goal": 0.6409893035888672
+      },
+      "green_chromaticity_threshold": {
+        "first_half_own_half_towards_own_goal": 0.36477652192115784
+      }
+    }
   }
 }
