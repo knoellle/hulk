@@ -183,11 +183,10 @@ impl PathPlanner {
             ),
         ];
 
-        self.obstacles.extend(
-            line_segments.into_iter().map(|line_segment| {
-                PathObstacle::from(PathObstacleShape::LineSegment(line_segment))
-            }),
-        );
+        self.obstacles
+            .extend(line_segments.into_iter().map(|line_segment| {
+                PathObstacle::from(PathObstacleShape::OneWayLineSegment(line_segment))
+            }));
 
         self
     }
@@ -217,11 +216,10 @@ impl PathPlanner {
             post_to_border(-1.0, -1.0),
         ];
 
-        self.obstacles.extend(
-            line_segments.into_iter().map(|line_segment| {
-                PathObstacle::from(PathObstacleShape::LineSegment(line_segment))
-            }),
-        );
+        self.obstacles
+            .extend(line_segments.into_iter().map(|line_segment| {
+                PathObstacle::from(PathObstacleShape::OneWayLineSegment(line_segment))
+            }));
     }
 
     fn generate_start_destination_tangents(&mut self) {
@@ -418,7 +416,7 @@ impl PathPlanner {
 
         match &self.obstacles[obstacle_index].shape {
             PathObstacleShape::Circle(circle) => tangent.get_direction(circle.center),
-            PathObstacleShape::LineSegment(_) => panic!("LineSegment not implemented"),
+            PathObstacleShape::OneWayLineSegment(_) => panic!("LineSegment not implemented"),
         }
     }
 
@@ -534,6 +532,7 @@ mod tests {
     use std::f32::consts::PI;
 
     use approx::assert_relative_eq;
+    use geometry::rectangle::Rectangle;
     use linear_algebra::point;
 
     use super::*;
@@ -807,7 +806,7 @@ mod tests {
     }
 
     #[test]
-    fn path_start_surrounded() {
+    fn path_surrounded_by_circles_impossible() {
         let mut map = PathPlanner::default();
         map.with_obstacles(
             &[
@@ -822,23 +821,57 @@ mod tests {
             .plan(Point2::origin(), point![2.0, 0.0])
             .expect("Path error")
             .is_none());
+        assert!(map
+            .plan(point![2.0, 0.0], Point2::origin())
+            .expect("Path error")
+            .is_none());
     }
 
     #[test]
-    fn path_end_surrounded() {
+    fn can_leave_but_not_enter_rectangle() {
         let mut map = PathPlanner::default();
-        map.with_obstacles(
-            &[
-                Obstacle::goal_post(point![0.5, 0.5], 0.6),
-                Obstacle::goal_post(point![-0.5, 0.5], 0.6),
-                Obstacle::goal_post(point![-0.5, -0.5], 0.6),
-                Obstacle::goal_post(point![0.5, -0.5], 0.6),
-            ],
+        map.with_rule_obstacles(
+            Isometry2::identity(),
+            &[RuleObstacle::Rectangle(Rectangle {
+                min: point![-1.0, -1.0],
+                max: point![1.0, 1.0],
+            })],
             0.0,
         );
         assert!(map
             .plan(point![2.0, 0.0], Point2::origin())
             .expect("Path error")
             .is_none());
+        assert!(map
+            .plan(Point2::origin(), point![2.0, 0.0])
+            .expect("Path error")
+            .is_some());
+    }
+
+    #[test]
+    fn can_leave_but_not_enter_rectangle_obstacle_through_arc() {
+        let mut map = PathPlanner::default();
+        map.with_rule_obstacles(
+            Isometry2::default(),
+            &[
+                RuleObstacle::Rectangle(Rectangle {
+                    min: point![-1.0, -1.0],
+                    max: point![1.0, 1.0],
+                }),
+                RuleObstacle::Circle(Circle {
+                    center: point![-1.0, 0.0],
+                    radius: 0.25,
+                }),
+            ],
+            0.0,
+        );
+        assert!(dbg!(map
+            .plan(point![2.0, 0.0], Point2::origin())
+            .expect("Path error"))
+        .is_none());
+        assert!(dbg!(map
+            .plan(Point2::origin(), point![2.0, 0.0])
+            .expect("Path error"))
+        .is_some());
     }
 }

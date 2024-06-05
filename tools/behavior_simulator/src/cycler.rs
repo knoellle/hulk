@@ -326,29 +326,7 @@ impl BehaviorCycler {
         {
             let main_outputs = self
                 .behavior
-                .cycle(node::CycleContext::new(
-                    AdditionalOutput::new(
-                        true,
-                        &mut own_database.additional_outputs.path_obstacles,
-                    ),
-                    AdditionalOutput::new(
-                        true,
-                        &mut own_database.additional_outputs.dribble_path_obstacles,
-                    ),
-                    AdditionalOutput::new(true, &mut own_database.additional_outputs.active_action),
-                    own_database.main_outputs.expected_referee_position.as_ref(),
-                    &true,
-                    &own_database.main_outputs.world_state,
-                    &own_database.main_outputs.cycle_time,
-                    &own_database.main_outputs.is_localization_converged,
-                    &parameters.behavior,
-                    &parameters.in_walk_kicks,
-                    &parameters.field_dimensions,
-                    &parameters.behavior.lost_ball,
-                    &parameters.behavior.intercept_ball,
-                    &parameters.step_planner.max_step_size,
-                    &parameters.behavior.role_positions.striker_set_position,
-                ))
+                .cycle(todo!())
                 .wrap_err("failed to execute cycle of node `Behavior`")?;
             own_database.main_outputs.motion_command = main_outputs.motion_command.value;
             own_database.main_outputs.dribble_path = main_outputs.dribble_path.value;

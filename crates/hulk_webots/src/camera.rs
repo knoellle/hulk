@@ -63,12 +63,13 @@ impl Camera {
     }
 
     pub fn read(&self) -> Result<YCbCr422Image> {
-        let bgra_buffer = {
+        let bgra_buffer = loop {
             let mut bgra_buffer = self.buffer.lock();
             self.buffer_updated.wait(&mut bgra_buffer);
-            bgra_buffer
-                .take()
-                .ok_or_else(|| eyre!("no updated image found"))?
+            if let Some(buffer) = bgra_buffer.take() {
+                break buffer;
+            }
+            // .ok_or_else(|| eyre!("no updated image found"))?
         };
         assert_eq!(bgra_buffer.len(), 4 * 640 * 480);
         let mut ycbcr_buffer = vec![

@@ -29,7 +29,7 @@ pub fn collect_hulk_cyclers() -> Result<Cyclers, Error> {
                 name: "ObjectDetection",
                 kind: CyclerKind::Perception,
                 instances: vec!["Top"],
-                setup_nodes: vec!["vision::image_receiver"],
+                setup_nodes: vec!["object_detection::dummy_image_receiver"],
                 nodes: vec![
                     "object_detection::pose_detection",
                     "object_detection::pose_interpretation",

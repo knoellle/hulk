@@ -1,6 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use color_eyre::{eyre::WrapErr, Result};
+use color_eyre::{
+    eyre::{bail, WrapErr},
+    Result,
+};
 use context_attribute::context;
 use framework::{AdditionalOutput, MainOutput};
 use hardware::{SensorInterface, TimeInterface};
@@ -41,6 +44,7 @@ impl SensorDataReceiver {
         &mut self,
         mut context: CycleContext<impl SensorInterface + TimeInterface>,
     ) -> Result<MainOutputs> {
+        bail!("eeeee");
         let mut sensor_data = context
             .hardware_interface
             .read_from_sensors()

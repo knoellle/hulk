@@ -59,7 +59,8 @@ where
                         None => break,
                     }
                 },
-                _ = outputs_reader.wait_for_change() => {
+                res = outputs_reader.wait_for_change() => {
+                    println!("{res:#?}");
                     handle_notified_output(&mut outputs_reader, &mut subscriptions, &mut next_binary_reference_id).await
                 },
             };

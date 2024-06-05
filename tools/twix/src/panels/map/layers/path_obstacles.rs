@@ -43,7 +43,7 @@ impl Layer<Ground> for PathObstacles {
                 PathObstacleShape::Circle(circle) => {
                     painter.circle_stroke(circle.center, circle.radius, path_obstacle_stroke)
                 }
-                PathObstacleShape::LineSegment(line_segment) => {
+                PathObstacleShape::OneWayLineSegment(line_segment) => {
                     painter.line_segment(line_segment.0, line_segment.1, path_obstacle_stroke)
                 }
             }

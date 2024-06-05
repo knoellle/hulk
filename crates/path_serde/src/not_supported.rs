@@ -106,6 +106,7 @@ implement_as_not_supported!(Duration);
 implement_as_not_supported!(HashMap<K, V>, K, V);
 implement_as_not_supported!(HashSet<T>, T);
 implement_as_not_supported!(PathBuf);
+implement_as_not_supported!(Result<T, E>, T, E);
 implement_as_not_supported!(SocketAddr);
 implement_as_not_supported!(String);
 implement_as_not_supported!(SystemTime);

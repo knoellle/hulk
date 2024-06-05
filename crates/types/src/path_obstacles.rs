@@ -11,15 +11,20 @@ use coordinate_systems::Ground;
 )]
 pub enum PathObstacleShape {
     Circle(Circle<Ground>),
-    LineSegment(LineSegment<Ground>),
+    /// Allows passing from the "left" of the line to the "right" but not the other way around.
+    /// Left and right are identifed the winding direction of the triangle `[line.0, line.1, point]`.
+    /// A polygon made of these lines with  vertices arrange counterclockwise can be passed out of
+    /// but not into.
+    OneWayLineSegment(LineSegment<Ground>),
 }
 
 impl PathObstacleShape {
     pub fn intersects_line_segment(&self, line_segment: LineSegment<Ground>) -> bool {
         match self {
             PathObstacleShape::Circle(circle) => circle.intersects_line_segment(&line_segment),
-            PathObstacleShape::LineSegment(obstacle_line_segment) => {
+            PathObstacleShape::OneWayLineSegment(obstacle_line_segment) => {
                 obstacle_line_segment.intersects_line_segment(line_segment)
+                    && obstacle_line_segment.get_direction(line_segment.0) == Direction::Clockwise
             }
         }
     }
@@ -27,8 +32,14 @@ impl PathObstacleShape {
     pub fn overlaps_arc(&self, arc: Arc<Ground>, orientation: Direction) -> bool {
         match self {
             PathObstacleShape::Circle(circle) => circle.overlaps_arc(arc, orientation),
-            PathObstacleShape::LineSegment(line_segment) => {
-                line_segment.overlaps_arc(arc, orientation)
+            PathObstacleShape::OneWayLineSegment(line_segment) => {
+                let overlaps_arc = line_segment.overlaps_arc(arc, orientation);
+                let two_crossings =
+                    line_segment.get_direction(arc.start) != line_segment.get_direction(arc.end);
+                let first_crossing_blocked =
+                    line_segment.get_direction(arc.start) == Direction::Clockwise;
+
+                overlaps_arc && (first_crossing_blocked || two_crossings)
             }
         }
     }
@@ -72,6 +83,6 @@ impl From<Circle<Ground>> for PathObstacle {
 }
 impl From<LineSegment<Ground>> for PathObstacle {
     fn from(shape: LineSegment<Ground>) -> Self {
-        Self::from(PathObstacleShape::LineSegment(shape))
+        Self::from(PathObstacleShape::OneWayLineSegment(shape))
     }
 }

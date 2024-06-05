@@ -1,5 +1,7 @@
 use std::{
+    default,
     path::PathBuf,
+    thread::sleep,
     time::{Duration, SystemTime},
 };
 
@@ -42,7 +44,7 @@ pub struct PoseDetection {
     #[serde(skip, default = "deserialize_not_implemented")]
     scratchpad: Vec<f32>,
     #[serde(skip, default = "deserialize_not_implemented")]
-    network: ExecutableNetwork,
+    network: Option<ExecutableNetwork>,
 
     input_name: String,
     output_name: String,
@@ -87,37 +89,41 @@ impl PoseDetection {
         let model_path = neural_network_folder.join(&model_xml_name);
         let weights_path = neural_network_folder.join(model_xml_name.with_extension("bin"));
 
-        let mut core = Core::new(None)?;
-        let mut network = core
-            .read_network_from_file(
-                model_path
-                    .to_str()
-                    .wrap_err("failed to get detection model path")?,
-                weights_path
-                    .to_str()
-                    .wrap_err("failed to get detection weights path")?,
-            )
-            .wrap_err("failed to create detection network")?;
+        // let mut core = Core::new(None)?;
+        // let mut network = core
+        //     .read_network_from_file(
+        //         model_path
+        //             .to_str()
+        //             .wrap_err("failed to get detection model path")?,
+        //         weights_path
+        //             .to_str()
+        //             .wrap_err("failed to get detection weights path")?,
+        //     )
+        //     .wrap_err("failed to create detection network")?;
+        //
+        // let input_name = network.get_input_name(0)?;
+        // let output_name = network.get_output_name(0)?;
 
-        let input_name = network.get_input_name(0)?;
-        let output_name = network.get_output_name(0)?;
-
-        network
-            .set_input_layout(&input_name, Layout::NCHW)
-            .wrap_err("failed to set input data format")?;
+        // network
+        //     .set_input_layout(&input_name, Layout::NCHW)
+        //     .wrap_err("failed to set input data format")?;
 
         Ok(Self {
             scratchpad: vec![0.0; DETECTION_SCRATCHPAD_SIZE],
-            network: core.load_network(&network, "CPU")?,
-            input_name,
-            output_name,
+            network: None,
+            input_name: Default::default(),
+            output_name: Default::default(),
         })
     }
 
     pub fn cycle(&mut self, mut context: CycleContext<impl TimeInterface>) -> Result<MainOutputs> {
+        sleep(Duration::from_secs(1000));
         if !context.enable {
             return Ok(MainOutputs::default());
         }
+        let Some(network) = &mut self.network else {
+            return Ok(MainOutputs::default());
+        };
 
         let should_look_for_referee = matches!(
             context.motion_command,
@@ -145,7 +151,7 @@ impl PoseDetection {
             });
         }
 
-        let mut infer_request = self.network.create_infer_request()?;
+        let mut infer_request = network.create_infer_request()?;
 
         let tensor_description = TensorDesc::new(
             Layout::NCHW,
