@@ -68,7 +68,7 @@ where
 
 impl<Frame> Circle<Frame>
 where
-    Frame: Copy,
+    Frame: Copy + std::fmt::Debug,
 {
     pub fn new(center: Point2<Frame>, radius: f32) -> Self {
         Self { center, radius }

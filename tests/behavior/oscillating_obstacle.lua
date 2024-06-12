@@ -9,17 +9,45 @@ state.game_controller_state.game_state = "Playing"
 function on_cycle()
   if state.cycle_count == 1 then
     state.ball = {
-      position = { 1.0, 0.0 },
+      position = { 2.0, 0.0 },
       velocity = { 0.0, 0.0 },
     }
-    set_robot_pose(7, { -1.0, 0 }, 0)
+    set_robot_pose(7, { -4.0, 0 }, 0)
 
-    create_obstacle(7, { 0.1, 0.0 }, 0.3)
-  end
-
-  if state.cycle_count > 100 and state.cycle_count % 10 == 0 then
-    clear_obstacles(7)
-    create_obstacle(7, { 0.1, math.random() * 0.05 }, 0.3)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
+    create_obstacle(7, { 0.0, 0.0 },  1.1)
+    create_obstacle(7, { 2.0, 0.0 },  0.1)
+    create_obstacle(7, {-1.0, 0.0 },  0.8)
   end
 
   if state.cycle_count == 5000 then

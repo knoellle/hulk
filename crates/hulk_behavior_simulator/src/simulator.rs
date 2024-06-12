@@ -26,7 +26,7 @@ pub struct Frame {
 
 pub struct Simulator {
     pub state: Arc<Mutex<State>>,
-    pub frames: Vec<Frame>,
+    pub frames: Arc<Mutex<Vec<Frame>>>,
     lua: Lua,
 }
 
@@ -66,7 +66,7 @@ impl Simulator {
         Ok(Self {
             state,
             lua,
-            frames: Vec::new(),
+            frames: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -98,7 +98,7 @@ impl Simulator {
             for (player_number, robot) in &state.robots {
                 robots[*player_number] = Some(robot.database.clone())
             }
-            self.frames.push(Frame {
+            self.frames.lock().push(Frame {
                 robots,
                 ball: state.ball.clone(),
             });

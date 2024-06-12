@@ -74,9 +74,13 @@ impl<'cycle> WalkPathPlanner<'cycle> {
         if let Some(ball_position) = ball_obstacle {
             let foot_proportion = self.parameters.minimum_robot_radius_at_foot_height
                 / self.parameters.robot_radius_at_foot_height;
-            let calculated_robot_radius_at_foot_height =
+            let mut calculated_robot_radius_at_foot_height =
                 self.parameters.robot_radius_at_foot_height
-                    * ((ball_obstacle_radius_factor * (1.0 - foot_proportion)) + foot_proportion);
+                    * (ball_obstacle_radius_factor * (1.0 - foot_proportion) + foot_proportion);
+            // assert!(!calculated_robot_radius_at_foot_height.is_nan());
+            if !calculated_robot_radius_at_foot_height.is_nan() {
+                calculated_robot_radius_at_foot_height = 0.3;
+            }
             planner.with_ball(
                 ball_position,
                 self.parameters.ball_obstacle_radius,
@@ -97,7 +101,9 @@ impl<'cycle> WalkPathPlanner<'cycle> {
             .plan(Point::origin(), clamped_target_in_robot)
             .unwrap();
         path_obstacles_output.fill_if_subscribed(|| planner.obstacles.clone());
-        path.unwrap_or_else(|| direct_path(Point::origin(), target_in_ground))
+        path.unwrap_or_else(|| {
+            direct_path(Point::origin(), (-target_in_ground.coords()).as_point())
+        })
     }
 
     pub fn walk_with_obstacle_avoiding_arms(

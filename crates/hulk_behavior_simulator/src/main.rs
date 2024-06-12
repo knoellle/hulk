@@ -73,13 +73,13 @@ fn run(arguments: RunArguments) -> Result<()> {
 
 fn serve(arguments: ServeArguments) -> Result<()> {
     let keep_running = CancellationToken::new();
-    {
-        let keep_running = keep_running.clone();
-        ctrlc::set_handler(move || {
-            println!("Cancelling...");
-            keep_running.cancel();
-        })?;
-    }
+    // {
+    //     let keep_running = keep_running.clone();
+    //     ctrlc::set_handler(move || {
+    //         println!("Cancelling...");
+    //         keep_running.cancel();
+    //     })?;
+    // }
 
     server::run(
         Some(arguments.listen_address),

@@ -59,7 +59,7 @@ where
 
 impl<Frame> LineSegment<Frame>
 where
-    Frame: Copy,
+    Frame: Copy + std::fmt::Debug,
 {
     pub fn new(start: Point2<Frame>, end: Point2<Frame>) -> Self {
         Self(start, end)
@@ -79,7 +79,11 @@ where
     pub fn projection_factor(&self, point: Point2<Frame>) -> f32 {
         let projection = (point - self.0).dot(self.1 - self.0);
 
-        projection / self.norm_squared()
+        let factor = projection / self.norm_squared();
+        if factor.is_nan() {
+            // return 0.0;
+        }
+        factor
     }
 
     pub fn closest_point(&self, point: Point2<Frame>) -> Point2<Frame> {
@@ -137,7 +141,10 @@ where
             f if f == 0.0 => Direction::Colinear,
             f if f > 0.0 => Direction::Clockwise,
             f if f < 0.0 => Direction::Counterclockwise,
-            f => panic!("directed cathetus was not a real number: {f}"),
+            f => {
+                println!("{self:#?}\n{point:#?}");
+                panic!("directed cathetus was not a real number: {f}")
+            }
         }
     }
 
@@ -209,7 +216,7 @@ mod tests {
 
     use super::*;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     struct SomeFrame;
 
     #[test]

@@ -90,7 +90,7 @@ impl KickSelector {
         );
 
         let mut kick_decisions: Vec<_> = iproduct!(sides, kick_variants)
-            .filter_map(|(side, kick_variant)| {
+            .map(|(side, kick_variant)| {
                 kick_decisions_from_targets(
                     context.kick_targets,
                     context.in_walk_kicks,
@@ -250,22 +250,20 @@ fn kick_decisions_from_targets(
     kicking_side: Side,
     ball_position: Point2<Ground>,
     default_strength: f32,
-) -> Option<Vec<KickDecision>> {
-    Some(
-        targets_to_kick_to
-            .iter()
-            .map(|&KickTarget { position, strength }| {
-                let kick_info = &in_walk_kicks[variant];
-                let kick_pose = compute_kick_pose(ball_position, position, kick_info, kicking_side);
-                KickDecision {
-                    variant,
-                    kicking_side,
-                    kick_pose,
-                    strength: strength.unwrap_or(default_strength),
-                }
-            })
-            .collect(),
-    )
+) -> Vec<KickDecision> {
+    targets_to_kick_to
+        .iter()
+        .map(|&KickTarget { position, strength }| {
+            let kick_info = &in_walk_kicks[variant];
+            let kick_pose = compute_kick_pose(ball_position, position, kick_info, kicking_side);
+            KickDecision {
+                variant,
+                kicking_side,
+                kick_pose,
+                strength: strength.unwrap_or(default_strength),
+            }
+        })
+        .collect()
 }
 
 fn distance_to_kick_pose(kick_pose: Pose2<Ground>, angle_distance_weight: f32) -> f32 {

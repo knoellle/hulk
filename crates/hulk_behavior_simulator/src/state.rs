@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    f32::consts::FRAC_PI_4,
+    f32::consts::{FRAC_PI_4, PI},
     mem::take,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use coordinate_systems::{Field, Head};
 use geometry::line_segment::LineSegment;
-use linear_algebra::{vector, Isometry2, Orientation2, Point2, Rotation2, Vector2};
+use linear_algebra::{point, vector, Isometry2, Orientation2, Point2, Rotation2, Vector2};
 use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use spl_network_messages::{GamePhase, GameState, HulkMessage, PlayerNumber, Team};
 use types::{
@@ -111,10 +111,20 @@ impl State {
                             ),
                     );
 
-                    for obstacle in robot.database.main_outputs.obstacles.iter_mut() {
+                    for (index, obstacle) in
+                        robot.database.main_outputs.obstacles.iter_mut().enumerate()
+                    {
+                        let t = 5000.0
+                            + index as f32 * PI
+                            + self.time_elapsed.as_secs_f32() * (0.3 + index as f32 / 1000.0 * PI);
                         obstacle.position = ground_to_field.inverse()
-                            * previous_ground_to_field
-                            * obstacle.position;
+                            * point![
+                                (t % 18.0 - 9.0).abs() - 4.5,
+                                ((t * (0.5 + index as f32 / 15.0)) % 12.0 - 6.0).abs() - 3.0
+                            ];
+                        let t = index as f32 * 1000.0 + self.time_elapsed.as_secs_f32();
+                        obstacle.radius_at_hip_height = (t.sin() * 0.25 + 0.2);
+                        obstacle.radius_at_foot_height = obstacle.radius_at_hip_height;
                     }
 
                     head
@@ -200,6 +210,7 @@ impl State {
             if ball_visible {
                 robot.ball_last_seen = Some(now);
             }
+            robot.ball_last_seen = Some(now);
             robot.database.main_outputs.ball_position =
                 if robot.ball_last_seen.is_some_and(|last_seen| {
                     now.duration_since(last_seen).expect("time ran backwards")

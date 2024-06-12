@@ -1,5 +1,6 @@
 use std::{
     path::Path,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -10,6 +11,7 @@ use crate::{
     state::Ball,
 };
 use color_eyre::{eyre::bail, owo_colors::OwoColorize, Result};
+use parking_lot::Mutex;
 use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use serde::{Deserialize, Serialize};
 use tokio::{net::ToSocketAddrs, select, time::interval};
@@ -40,7 +42,7 @@ async fn timeline_server(
     mut parameters_reader: buffered_watch::Receiver<Parameters>,
     mut outputs_writer: buffered_watch::Sender<BehaviorSimulatorDatabase>,
     mut control_writer: buffered_watch::Sender<Database>,
-    frames: Vec<Frame>,
+    frames: Arc<Mutex<Vec<Frame>>>,
 ) {
     // Hack to provide frame count to clients initially.
     // Can be removed if communication sends data for
@@ -60,10 +62,11 @@ async fn timeline_server(
 
         {
             let mut outputs = outputs_writer.borrow_mut();
-            outputs.main_outputs.frame_count = frames.len();
-            let frame = &frames[parameters.selected_frame];
-            outputs.main_outputs.ball.clone_from(&frame.ball);
-            outputs.main_outputs.databases = frame.robots.clone();
+            outputs.main_outputs.frame_count = frames.lock().len();
+            if let Some(frame) = &frames.lock().get(parameters.selected_frame) {
+                outputs.main_outputs.ball.clone_from(&frame.ball);
+                outputs.main_outputs.databases = frame.robots.clone();
+            }
         }
 
         {
@@ -71,7 +74,7 @@ async fn timeline_server(
             *control = to_player_number(parameters.selected_robot)
                 .ok()
                 .and_then(|player_number| {
-                    frames[parameters.selected_frame].robots[player_number].clone()
+                    frames.lock().get(parameters.selected_frame)?.robots[player_number].clone()
                 })
                 .unwrap_or_default();
         }
@@ -113,17 +116,7 @@ pub fn run(
     );
 
     let mut simulator = Simulator::try_new()?;
-    simulator.execute_script(scenario_file)?;
-
-    let start = Instant::now();
-    if let Err(error) = simulator.run() {
-        eprintln!("{}", format!("{:#?}", error).bright_red())
-    }
-    let duration = Instant::now() - start;
-    println!("Took {:.2} seconds", duration.as_secs_f32());
-
-    let frames = simulator.frames;
-
+    let frames = simulator.frames.clone();
     let runtime = tokio::runtime::Runtime::new()?;
     {
         let parameters_reader = communication_server.get_parameters_receiver();
@@ -138,6 +131,15 @@ pub fn run(
             .await
         });
     }
+
+    simulator.execute_script(scenario_file)?;
+
+    let start = Instant::now();
+    if let Err(error) = simulator.run() {
+        eprintln!("{}", format!("{:#?}", error).bright_red())
+    }
+    let duration = Instant::now() - start;
+    println!("Took {:.2} seconds", duration.as_secs_f32());
 
     let mut encountered_error = false;
     match communication_server.join() {

@@ -153,34 +153,10 @@ impl PathPlanner {
         let top_left = field_to_ground * point![-x, y];
 
         let line_segments = [
-            LineSegment(bottom_left, top_left).translate(
-                field_to_ground
-                    * vector![
-                        -distance_to_left_field_border.powf(2.0) * distance_weight,
-                        0.0
-                    ],
-            ),
-            LineSegment(top_left, top_right).translate(
-                field_to_ground
-                    * vector![
-                        0.0,
-                        distance_to_upper_field_border.powf(2.0) * distance_weight
-                    ],
-            ),
-            LineSegment(top_right, bottom_right).translate(
-                field_to_ground
-                    * vector![
-                        distance_to_right_field_border.powf(2.0) * distance_weight,
-                        0.0
-                    ],
-            ),
-            LineSegment(bottom_right, bottom_left).translate(
-                field_to_ground
-                    * vector![
-                        0.0,
-                        -distance_to_lower_field_border.powf(2.0) * distance_weight
-                    ],
-            ),
+            LineSegment(bottom_left, top_left),
+            LineSegment(top_left, top_right),
+            LineSegment(top_right, bottom_right),
+            LineSegment(bottom_right, bottom_left),
         ];
 
         self.obstacles.extend(
@@ -290,13 +266,13 @@ impl PathPlanner {
             let to_start = start - circle.center;
             let safety_radius = circle.radius * 1.1;
             if to_start.norm_squared() <= safety_radius.powi(2) {
-                circle.radius -= safety_radius - to_start.norm();
+                circle.radius -= circle.radius.min(safety_radius - to_start.norm());
             }
 
             let to_destination = destination - circle.center;
             let safety_radius = circle.radius * 1.1;
             if to_destination.norm_squared() <= safety_radius.powi(2) {
-                circle.radius -= safety_radius - to_destination.norm();
+                circle.radius -= circle.radius.min(safety_radius - to_destination.norm());
             }
         }
 
@@ -304,6 +280,7 @@ impl PathPlanner {
 
         self.generate_start_destination_tangents();
 
+        // dbg!(&self.obstacles);
         let navigation_path = a_star_search(0, 1, self);
 
         if !navigation_path.success {
