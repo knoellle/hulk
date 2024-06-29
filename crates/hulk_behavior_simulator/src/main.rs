@@ -1,13 +1,10 @@
-use std::{io::stdout, path::PathBuf, time::Instant};
+use std::{io::stdout, path::PathBuf};
 
 use chrono::Local;
 use clap::Parser;
-use color_eyre::{eyre::Context, install, Result};
+use color_eyre::{install, Result};
 use fern::{Dispatch, InitError};
 use log::LevelFilter;
-use tokio_util::sync::CancellationToken;
-
-use hulk_behavior_simulator::{server, simulator::Simulator};
 
 #[derive(Parser)]
 enum Arguments {
@@ -60,35 +57,36 @@ fn main() -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    let mut simulator = Simulator::default();
-
-    let start = Instant::now();
-    simulator.run().wrap_err("failed to run simulation")?;
-    let duration = Instant::now() - start;
-    println!("Took {:.2} seconds", duration.as_secs_f32());
-
+    // let mut simulator = Simulator::default();
+    //
+    // let start = Instant::now();
+    // simulator.run().wrap_err("failed to run simulation")?;
+    // let duration = Instant::now() - start;
+    // println!("Took {:.2} seconds", duration.as_secs_f32());
+    //
     Ok(())
 }
 
 fn serve(arguments: ServeArguments) -> Result<()> {
-    let keep_running = CancellationToken::new();
-    {
-        let keep_running = keep_running.clone();
-        ctrlc::set_handler(move || {
-            println!("Cancelling...");
-            keep_running.cancel();
-        })?;
-    }
-
-    let mut simulator = Simulator::default();
-    let start = Instant::now();
-    simulator.run().wrap_err("failed to run simulation")?;
-    let duration = Instant::now() - start;
-    println!("Took {:.2} seconds", duration.as_secs_f32());
-
-    server::run(
-        simulator.frames,
-        Some(arguments.listen_address),
-        keep_running,
-    )
+    // let keep_running = CancellationToken::new();
+    // {
+    //     let keep_running = keep_running.clone();
+    //     ctrlc::set_handler(move || {
+    //         println!("Cancelling...");
+    //         keep_running.cancel();
+    //     })?;
+    // }
+    //
+    // let mut simulator = Simulator::default();
+    // let start = Instant::now();
+    // simulator.run().wrap_err("failed to run simulation")?;
+    // let duration = Instant::now() - start;
+    // println!("Took {:.2} seconds", duration.as_secs_f32());
+    //
+    // server::run(
+    //     simulator.frames,
+    //     Some(arguments.listen_address),
+    //     keep_running,
+    // )
+    todo!()
 }

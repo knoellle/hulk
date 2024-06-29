@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use bevy::ecs::component::Component;
 use buffered_watch::Receiver;
 use color_eyre::{eyre::WrapErr, Result};
 
@@ -12,15 +13,17 @@ use framework::{future_queue, Producer, RecordingTrigger};
 use linear_algebra::vector;
 use parameters::directory::deserialize;
 use projection::camera_matrix::CameraMatrix;
-use spl_network_messages::{HulkMessage, PlayerNumber};
+use spl_network_messages::PlayerNumber;
 use types::{messages::IncomingMessage, motion_selection::MotionSafeExits};
 
 use crate::{
     cyclers::control::{Cycler, CyclerInstance, Database},
     interfake::{FakeDataInterface, Interfake},
+    state::Message,
     structs::Parameters,
 };
 
+#[derive(Component)]
 pub struct Robot {
     pub interface: Arc<Interfake>,
     pub database: Database,
@@ -39,7 +42,7 @@ impl Robot {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
-        let mut parameter: Parameters = runtime.block_on(async {
+        let mut parameters: Parameters = runtime.block_on(async {
             deserialize(
                 "etc/parameters",
                 &format!("behavior_simulator.{}", from_player_number(player_number)),
@@ -48,7 +51,7 @@ impl Robot {
             .await
             .wrap_err("could not load initial parameters")
         })?;
-        parameter.player_number = player_number;
+        parameters.player_number = player_number;
 
         let interface: Arc<_> = Interfake::default().into();
 
@@ -59,7 +62,7 @@ impl Robot {
             buffered_watch::channel(Default::default());
         let (spl_network_sender, spl_network_consumer) = future_queue();
         let (recording_sender, _recording_receiver) = mpsc::sync_channel(0);
-        *parameters_sender.borrow_mut() = parameter.clone();
+        *parameters_sender.borrow_mut() = parameters.clone();
 
         let mut cycler = Cycler::new(
             CyclerInstance::Control,
@@ -77,8 +80,8 @@ impl Robot {
 
         database.main_outputs.ground_to_field = Some(
             generate_initial_pose(
-                &parameter.localization.initial_poses[player_number],
-                &parameter.field_dimensions,
+                &parameters.localization.initial_poses[player_number],
+                &parameters.field_dimensions,
             )
             .as_transform(),
         );
@@ -91,7 +94,7 @@ impl Robot {
         Ok(Self {
             interface,
             database,
-            parameters: parameter,
+            parameters,
             is_penalized: false,
             last_kick_time: Duration::default(),
             ball_last_seen: None,
@@ -102,10 +105,10 @@ impl Robot {
         })
     }
 
-    pub fn cycle(&mut self, messages: &[(PlayerNumber, HulkMessage)]) -> Result<()> {
-        for (source, hulks_message) in messages.iter() {
-            let source_is_other = *source != self.parameters.player_number;
-            let message = IncomingMessage::Spl(*hulks_message);
+    pub fn cycle(&mut self, messages: &[Message]) -> Result<()> {
+        for Message { sender, payload } in messages {
+            let source_is_other = *sender != self.parameters.player_number;
+            let message = IncomingMessage::Spl(*payload);
             self.spl_network_sender.announce();
             self.spl_network_sender
                 .finalize(crate::structs::spl_network::MainOutputs {

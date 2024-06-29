@@ -1,12 +1,13 @@
 use std::time::Duration;
 
-use crate::{cyclers::control::Database, robot::to_player_number, simulator::Frame, state::Ball};
+use crate::{cyclers::control::Database, recorder::Frame, robot::to_player_number};
 use color_eyre::{eyre::bail, Result};
+use coordinate_systems::Field;
 use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use serde::{Deserialize, Serialize};
 use tokio::{net::ToSocketAddrs, select, time::interval};
 use tokio_util::sync::CancellationToken;
-use types::{field_dimensions::FieldDimensions, players::Players};
+use types::{ball_position::BallPosition, field_dimensions::FieldDimensions, players::Players};
 
 #[derive(Clone, Serialize, Deserialize, PathSerialize, PathDeserialize, PathIntrospect)]
 struct Parameters {
@@ -18,7 +19,7 @@ struct Parameters {
 #[derive(Clone, Default, Serialize, PathSerialize, PathIntrospect)]
 struct MainOutputs {
     frame_count: usize,
-    ball: Option<Ball>,
+    ball: Option<BallPosition<Field>>,
     databases: Players<Option<Database>>,
 }
 
