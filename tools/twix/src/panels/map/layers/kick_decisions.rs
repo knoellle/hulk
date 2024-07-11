@@ -64,7 +64,7 @@ impl KickDecisions {
     fn draw_kick_decisions(&self, painter: &TwixPainter<Ground>) -> Result<()> {
         let kick_decisions: Vec<KickDecision> = self.kick_decisions.parse_latest()?;
         let best_kick_decision = kick_decisions.first();
-        draw_kick_pose(
+        draw_kick_poses(
             painter,
             &kick_decisions,
             Stroke {
@@ -72,7 +72,7 @@ impl KickDecisions {
                 color: Color32::BLACK,
             },
         );
-        draw_kick_pose(
+        draw_kick_poses(
             painter,
             best_kick_decision.cloned().as_slice(),
             Stroke {
@@ -86,7 +86,7 @@ impl KickDecisions {
     fn draw_instant_kick_decisions(&self, painter: &TwixPainter<Ground>) -> Result<()> {
         let instant_kick_decisions: Vec<KickDecision> =
             self.instant_kick_decisions.parse_latest()?;
-        draw_kick_pose(
+        draw_kick_poses(
             painter,
             &instant_kick_decisions,
             Stroke {
@@ -118,7 +118,7 @@ impl KickDecisions {
     }
 }
 
-fn draw_kick_pose(painter: &TwixPainter<Ground>, kick_decisions: &[KickDecision], stroke: Stroke) {
+fn draw_kick_poses(painter: &TwixPainter<Ground>, kick_decisions: &[KickDecision], stroke: Stroke) {
     for kick_decision in kick_decisions {
         painter.pose(
             kick_decision.kick_pose,
