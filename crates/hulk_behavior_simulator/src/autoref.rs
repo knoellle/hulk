@@ -123,6 +123,7 @@ pub fn auto_assistant_referee(
     for command in game_controller_commands.read() {
         match *command {
             GameControllerCommand::SetGameState(_) => {}
+            GameControllerCommand::SetKickingTeam(_) => {}
             GameControllerCommand::Goal(_) => {}
             GameControllerCommand::Penalize(player_number, penalty) => match penalty {
                 Penalty::IllegalMotionInStandby { .. } | Penalty::IllegalMotionInSet { .. } => {
