@@ -26,6 +26,7 @@ use projection::camera_matrix::CameraMatrix;
 use spl_network_messages::{HulkMessage, PlayerNumber};
 use types::{
     ball_position::BallPosition,
+    filtered_whistle::FilteredWhistle,
     hardware::Ids,
     messages::{IncomingMessage, OutgoingMessage},
     motion_command::{HeadMotion, KickVariant, MotionCommand, OrientationMode},
@@ -176,6 +177,10 @@ impl Robot {
             .ground_to_field
             .as_mut()
             .expect("simulated robots should always have a ground to field")
+    }
+
+    pub fn whistle_mut(&mut self) -> &mut FilteredWhistle {
+        &mut self.database.main_outputs.filtered_whistle
     }
 }
 

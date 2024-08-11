@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_2;
+use std::{f32::consts::FRAC_PI_2, time::SystemTime};
 
 use bevy::{
     app::{App, Update},
@@ -12,7 +12,8 @@ use bevy::{
 use linear_algebra::{vector, Isometry2};
 use spl_network_messages::{GameState, Penalty, Team};
 use types::{
-    ball_position::SimulatorBallState, motion_command::MotionCommand, planned_path::PathSegment,
+    ball_position::SimulatorBallState, filtered_whistle::FilteredWhistle,
+    motion_command::MotionCommand, planned_path::PathSegment,
 };
 
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
 pub struct AutorefState {
     robots_standing_still: Option<Timer>,
     pub goal_mode: GoalMode,
+    is_whistling: bool,
 }
 
 #[derive(Default, Debug)]
@@ -40,6 +42,7 @@ impl Default for AutorefState {
         Self {
             robots_standing_still: None,
             goal_mode: GoalMode::GoToReady,
+            is_whistling: false,
         }
     }
 }
@@ -86,6 +89,10 @@ fn autoref(
             if ball.state.is_none() {
                 ball.state = Some(SimulatorBallState::default());
             };
+            if !state.is_whistling {
+                game_controller_commands.send(GameControllerCommand::Whistle);
+                state.is_whistling = true;
+            }
         }
         GameState::Playing => {
             if let Some(scoring_team) = ball.state.and_then(ball_in_goal) {
@@ -100,6 +107,7 @@ fn autoref(
                     GoalMode::Ignore => {}
                 }
             }
+            state.is_whistling = false;
         }
         _ => {}
     }
@@ -119,6 +127,7 @@ fn ball_in_goal(ball: SimulatorBallState) -> Option<Team> {
 pub fn auto_assistant_referee(
     mut game_controller_commands: EventReader<GameControllerCommand>,
     mut robots: Query<&mut Robot>,
+    time: ResMut<Time>,
 ) {
     for command in game_controller_commands.read() {
         match *command {
@@ -156,6 +165,15 @@ pub fn auto_assistant_referee(
                 {
                     *robot.ground_to_field_mut() =
                         Isometry2::from_parts(vector![-3.2, -3.3], FRAC_PI_2);
+                }
+            }
+            GameControllerCommand::Whistle => {
+                for mut robot in robots.iter_mut() {
+                    *robot.whistle_mut() = FilteredWhistle {
+                        is_detected: true,
+                        started_this_cycle: true,
+                        last_detection: Some(SystemTime::UNIX_EPOCH + time.elapsed()),
+                    };
                 }
             }
         }
