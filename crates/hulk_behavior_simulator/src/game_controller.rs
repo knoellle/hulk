@@ -42,8 +42,14 @@ fn game_controller_controller(
             }
             GameControllerCommand::Goal(team) => {
                 match team {
-                    Team::Hulks => &mut game_controller.state.hulks_team,
-                    Team::Opponent => &mut game_controller.state.opponent_team,
+                    Team::Hulks => {
+                        game_controller.state.kicking_team = Team::Opponent;
+                        &mut game_controller.state.hulks_team
+                    }
+                    Team::Opponent => {
+                        game_controller.state.kicking_team = Team::Hulks;
+                        &mut game_controller.state.opponent_team
+                    }
                 }
                 .score += 1;
                 game_controller.state.game_state = GameState::Ready;

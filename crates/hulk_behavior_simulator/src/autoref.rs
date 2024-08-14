@@ -171,7 +171,7 @@ pub fn auto_assistant_referee(
                 for mut robot in robots.iter_mut() {
                     *robot.whistle_mut() = FilteredWhistle {
                         is_detected: true,
-                        started_this_cycle: true,
+                        started_this_cycle: false,
                         last_detection: Some(SystemTime::UNIX_EPOCH + time.elapsed()),
                     };
                 }
