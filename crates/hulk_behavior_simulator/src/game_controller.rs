@@ -33,7 +33,6 @@ fn game_controller_controller(
         match *command {
             GameControllerCommand::SetGameState(game_state) => {
                 game_controller.state.game_state = game_state;
-                game_controller.state.kicking_team = Team::Opponent;
                 state.last_state_change = time.as_generic();
             }
             GameControllerCommand::SetKickingTeam(team) => {
