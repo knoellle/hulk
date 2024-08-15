@@ -10,7 +10,7 @@ use hulk_behavior_simulator::{
 };
 
 #[scenario]
-fn golden_goal(app: &mut App) {
+fn golden_goal_opponent_kickoff(app: &mut App) {
     app.add_systems(Startup, startup);
     app.add_systems(Update, update);
 }

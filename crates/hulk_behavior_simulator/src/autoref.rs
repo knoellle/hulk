@@ -1,4 +1,4 @@
-use std::{f32::consts::FRAC_PI_2, time::SystemTime};
+use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
     app::{App, Update},
@@ -12,21 +12,20 @@ use bevy::{
 use linear_algebra::{vector, Isometry2};
 use spl_network_messages::{GameState, Penalty, Team};
 use types::{
-    ball_position::SimulatorBallState, filtered_whistle::FilteredWhistle,
-    motion_command::MotionCommand, planned_path::PathSegment,
+    ball_position::SimulatorBallState, motion_command::MotionCommand, planned_path::PathSegment,
 };
 
 use crate::{
     ball::BallResource,
     game_controller::{GameController, GameControllerCommand},
     robot::Robot,
+    whistle::{breathe, whistle, WhistleResource},
 };
 
 #[derive(Resource)]
 pub struct AutorefState {
     robots_standing_still: Option<Timer>,
     pub goal_mode: GoalMode,
-    is_whistling: bool,
 }
 
 #[derive(Default, Debug)]
@@ -42,7 +41,6 @@ impl Default for AutorefState {
         Self {
             robots_standing_still: None,
             goal_mode: GoalMode::GoToReady,
-            is_whistling: false,
         }
     }
 }
@@ -50,6 +48,7 @@ impl Default for AutorefState {
 fn autoref(
     mut state: ResMut<AutorefState>,
     mut ball: ResMut<BallResource>,
+    mut referee_whistle: ResMut<WhistleResource>,
     game_controller: ResMut<GameController>,
     mut game_controller_commands: EventWriter<GameControllerCommand>,
     robots: Query<&Robot>,
@@ -89,9 +88,19 @@ fn autoref(
             if ball.state.is_none() {
                 ball.state = Some(SimulatorBallState::default());
             };
-            if !state.is_whistling {
-                game_controller_commands.send(GameControllerCommand::Whistle);
-                state.is_whistling = true;
+            if let Some(timer) = referee_whistle.timer.as_mut() {
+                timer.tick(time.delta());
+            }
+            if referee_whistle
+                .as_mut()
+                .timer
+                .as_ref()
+                .is_some_and(|timer| timer.finished())
+                && !referee_whistle.has_whistled
+            {
+                breathe(referee_whistle);
+            } else if referee_whistle.as_mut().timer.is_none() {
+                whistle(referee_whistle);
             }
         }
         GameState::Playing => {
@@ -107,7 +116,6 @@ fn autoref(
                     GoalMode::Ignore => {}
                 }
             }
-            state.is_whistling = false;
         }
         _ => {}
     }
@@ -127,7 +135,6 @@ fn ball_in_goal(ball: SimulatorBallState) -> Option<Team> {
 pub fn auto_assistant_referee(
     mut game_controller_commands: EventReader<GameControllerCommand>,
     mut robots: Query<&mut Robot>,
-    time: ResMut<Time>,
 ) {
     for command in game_controller_commands.read() {
         match *command {
@@ -165,15 +172,6 @@ pub fn auto_assistant_referee(
                 {
                     *robot.ground_to_field_mut() =
                         Isometry2::from_parts(vector![-3.2, -3.3], FRAC_PI_2);
-                }
-            }
-            GameControllerCommand::Whistle => {
-                for mut robot in robots.iter_mut() {
-                    *robot.whistle_mut() = FilteredWhistle {
-                        is_detected: true,
-                        started_this_cycle: false,
-                        last_detection: Some(SystemTime::UNIX_EPOCH + time.elapsed()),
-                    };
                 }
             }
         }

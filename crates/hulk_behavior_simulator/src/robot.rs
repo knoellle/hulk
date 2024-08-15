@@ -41,6 +41,7 @@ use crate::{
     game_controller::GameController,
     interfake::{FakeDataInterface, Interfake},
     structs::Parameters,
+    whistle::WhistleResource,
 };
 
 #[derive(Component)]
@@ -336,6 +337,7 @@ pub struct Messages {
 pub fn cycle_robots(
     mut robots: Query<&mut Robot>,
     ball: Res<BallResource>,
+    whistle: Res<WhistleResource>,
     mut game_controller: ResMut<GameController>,
     time: Res<Time>,
     mut messages: ResMut<Messages>,
@@ -372,6 +374,15 @@ pub fn cycle_robots(
             } else {
                 None
             };
+        *robot.whistle_mut() = FilteredWhistle {
+            is_detected: whistle.is_whistling,
+            started_this_cycle: false,
+            last_detection: if whistle.is_whistling {
+                Some(SystemTime::UNIX_EPOCH + time.elapsed())
+            } else {
+                None
+            },
+        };
         robot.database.main_outputs.game_controller_state = Some(game_controller.state.clone());
         robot.cycler.cycler_state.ground_to_field = robot.ground_to_field();
         robot.cycle(&messages_sent_last_cycle).unwrap();

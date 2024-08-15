@@ -16,6 +16,7 @@ use crate::{
     recorder::Recording,
     robot::{cycle_robots, move_robots, Messages},
     time::{update_time, Ticks},
+    whistle::WhistleResource,
 };
 
 #[derive(Default, Copy, Clone)]
@@ -42,6 +43,7 @@ impl Plugin for SimulatorPlugin {
         .add_plugins(game_controller_plugin)
         .insert_resource(GameController::default())
         .insert_resource(BallResource::default())
+        .insert_resource(WhistleResource::default())
         .insert_resource(Messages::default())
         .insert_resource(Time::<()>::default())
         .insert_resource(Time::<Ticks>::default())

@@ -7,10 +7,11 @@ use spl_network_messages::{
 };
 use types::{game_controller_state::GameControllerState, players::Players};
 
+use crate::whistle::WhistleResource;
+
 #[derive(Resource, Default)]
 struct GameControllerControllerState {
     last_state_change: Time,
-    referee_is_whistling: bool,
 }
 
 #[derive(Clone, Copy, Event)]
@@ -20,13 +21,13 @@ pub enum GameControllerCommand {
     Goal(Team),
     Penalize(PlayerNumber, Penalty),
     Unpenalize(PlayerNumber),
-    Whistle,
 }
 
 fn game_controller_controller(
     mut commands: EventReader<GameControllerCommand>,
     mut state: ResMut<GameControllerControllerState>,
     mut game_controller: ResMut<GameController>,
+    mut whistle: ResMut<WhistleResource>,
     time: ResMut<Time>,
 ) {
     for command in commands.read() {
@@ -60,7 +61,6 @@ fn game_controller_controller(
             GameControllerCommand::Unpenalize(player_number) => {
                 game_controller.state.penalties[player_number] = None;
             }
-            GameControllerCommand::Whistle => state.referee_is_whistling = true,
         }
     }
 
@@ -83,14 +83,15 @@ fn game_controller_controller(
         }
         GameState::Set => {
             if time.elapsed_seconds() - state.last_state_change.elapsed_seconds() > 15.0
-                && state.referee_is_whistling
+                && whistle.has_whistled
             {
                 game_controller.state.game_state = GameState::Playing;
-                state.referee_is_whistling = false;
                 state.last_state_change = time.as_generic();
             }
         }
-        GameState::Playing => {}
+        GameState::Playing => {
+            whistle.has_whistled = false;
+        }
         GameState::Finished => {}
     }
 }
