@@ -376,7 +376,6 @@ pub fn cycle_robots(
             };
         *robot.whistle_mut() = FilteredWhistle {
             is_detected: whistle.is_whistling,
-            started_this_cycle: false,
             last_detection: if whistle.is_whistling {
                 Some(SystemTime::UNIX_EPOCH + time.elapsed())
             } else {
