@@ -10,7 +10,7 @@ use bevy::{
 use color_eyre::{eyre::eyre, Result};
 
 use crate::{
-    autoref::autoref_plugin,
+    autoref::{autoref, autoref_plugin},
     ball::{move_ball, BallResource},
     game_controller::{game_controller_plugin, GameController},
     recorder::Recording,
@@ -48,8 +48,8 @@ impl Plugin for SimulatorPlugin {
         .insert_resource(Time::<()>::default())
         .insert_resource(Time::<Ticks>::default())
         .add_systems(First, update_time)
-        .add_systems(Update, cycle_robots)
-        .add_systems(Update, move_robots.after(cycle_robots))
+        .add_systems(Update, cycle_robots.before(move_robots).after(autoref))
+        .add_systems(Update, move_robots)
         .add_systems(Update, move_ball.after(move_robots));
 
         if self.use_recording {

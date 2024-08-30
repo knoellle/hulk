@@ -19,7 +19,7 @@ use crate::{
     ball::BallResource,
     game_controller::{GameController, GameControllerCommand},
     robot::Robot,
-    whistle::{breathe, whistle, WhistleResource},
+    whistle::WhistleResource,
 };
 
 #[derive(Resource)]
@@ -45,7 +45,7 @@ impl Default for AutorefState {
     }
 }
 
-fn autoref(
+pub fn autoref(
     mut state: ResMut<AutorefState>,
     mut ball: ResMut<BallResource>,
     mut referee_whistle: ResMut<WhistleResource>,
@@ -88,20 +88,7 @@ fn autoref(
             if ball.state.is_none() {
                 ball.state = Some(SimulatorBallState::default());
             };
-            if let Some(timer) = referee_whistle.timer.as_mut() {
-                timer.tick(time.delta());
-            }
-            if referee_whistle
-                .as_mut()
-                .timer
-                .as_ref()
-                .is_some_and(|timer| timer.finished())
-                && !referee_whistle.has_whistled
-            {
-                breathe(referee_whistle);
-            } else if referee_whistle.as_mut().timer.is_none() {
-                whistle(referee_whistle);
-            }
+            referee_whistle.whistle(*time);
         }
         GameState::Playing => {
             if let Some(scoring_team) = ball.state.and_then(ball_in_goal) {

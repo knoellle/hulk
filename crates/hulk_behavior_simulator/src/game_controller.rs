@@ -7,7 +7,7 @@ use spl_network_messages::{
 };
 use types::{game_controller_state::GameControllerState, players::Players};
 
-use crate::whistle::WhistleResource;
+use crate::{autoref::autoref, whistle::WhistleResource};
 
 #[derive(Resource, Default)]
 struct GameControllerControllerState {
@@ -27,7 +27,7 @@ fn game_controller_controller(
     mut commands: EventReader<GameControllerCommand>,
     mut state: ResMut<GameControllerControllerState>,
     mut game_controller: ResMut<GameController>,
-    mut whistle: ResMut<WhistleResource>,
+    whistle: ResMut<WhistleResource>,
     time: ResMut<Time>,
 ) {
     for command in commands.read() {
@@ -82,16 +82,12 @@ fn game_controller_controller(
             }
         }
         GameState::Set => {
-            if time.elapsed_seconds() - state.last_state_change.elapsed_seconds() > 15.0
-                && whistle.has_whistled
-            {
+            if Some(time.elapsed()) == whistle.last_whistle {
                 game_controller.state.game_state = GameState::Playing;
                 state.last_state_change = time.as_generic();
             }
         }
-        GameState::Playing => {
-            whistle.has_whistled = false;
-        }
+        GameState::Playing => {}
         GameState::Finished => {}
     }
 }
@@ -141,7 +137,7 @@ impl Default for GameController {
 }
 
 pub fn game_controller_plugin(app: &mut App) {
-    app.add_systems(Update, game_controller_controller);
+    app.add_systems(Update, game_controller_controller.after(autoref));
     app.init_resource::<GameControllerControllerState>();
     app.init_resource::<Events<GameControllerCommand>>();
 }

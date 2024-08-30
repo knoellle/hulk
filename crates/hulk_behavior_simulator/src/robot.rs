@@ -375,12 +375,10 @@ pub fn cycle_robots(
                 None
             };
         *robot.whistle_mut() = FilteredWhistle {
-            is_detected: whistle.is_whistling,
-            last_detection: if whistle.is_whistling {
-                Some(SystemTime::UNIX_EPOCH + time.elapsed())
-            } else {
-                None
-            },
+            is_detected: Some(time.elapsed()) == whistle.last_whistle,
+            last_detection: whistle
+                .last_whistle
+                .map(|last_whistle| SystemTime::UNIX_EPOCH + last_whistle),
         };
         robot.database.main_outputs.game_controller_state = Some(game_controller.state.clone());
         robot.cycler.cycler_state.ground_to_field = robot.ground_to_field();
