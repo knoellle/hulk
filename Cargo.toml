@@ -51,7 +51,6 @@ members = [
   "tools/depp",
   "tools/fanta",
   "tools/hula/types",
-  "tools/localizer",
   "tools/mio",
   "tools/pepsi",
   "tools/twix",
@@ -201,11 +200,11 @@ walking_engine = { path = "crates/walking_engine" }
 watch = "0.2.3"
 webots = { version = "0.8.0" }
 zbus = { version = "3.7.0", features = ["tokio"] }
-bevy = {version = "0.11.3", features = ["dynamic_linking"]}
-bevy-inspector-egui = "0.20.0"
-bevy_egui = "0.22.0"
-bevy_obj = "0.11"
-bevy_asset_loader = "0.17.0"
+bevy = {version = "0.14.1", features = ["dynamic_linking", "wayland"]}
+bevy-inspector-egui = "0.25.2"
+bevy_egui = "0.29.0"
+bevy_obj = "0.14"
+bevy_asset_loader = "0.21.0"
 urdf-rs = "0.7.3"
 
 [patch.crates-io]

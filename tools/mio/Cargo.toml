@@ -9,9 +9,13 @@ bevy-inspector-egui = { workspace = true }
 bevy_asset_loader = { workspace = true }
 bevy_egui = { workspace = true }
 bevy_obj = { workspace = true }
+bincode = { workspace = true }
 color-eyre = { workspace = true }
 communication = { workspace = true }
+coordinate_systems = { workspace = true }
 egui_dock = { workspace = true }
+geometry = { workspace = true }
+linear_algebra = { workspace = true }
 nalgebra = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -29,16 +29,13 @@ fn main() -> Result<()> {
         .add_plugins(PanOrbitCameraPlugin)
         .insert_resource(Parameters::default())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(GizmoConfig {
-            line_width: 4.0,
-            ..default()
-        })
         .add_plugins(BallPlugin)
         .add_plugins(FieldPlugin)
         .add_plugins(NaoPlugin)
         .add_plugins(AsyncRuntimePlugin)
         .add_systems(Startup, setup_camera)
         .add_systems(Startup, setup_light)
+        .add_systems(Startup, setup_gizmos)
         .run();
     Ok(())
 }
@@ -78,4 +75,8 @@ fn setup_light(mut commands: Commands) {
             },
             ..default()
         });
+}
+
+fn setup_gizmos(mut gizmos: ResMut<GizmoConfigStore>) {
+    gizmos.config_mut::<DefaultGizmoConfigGroup>().0.line_width = 4.0
 }

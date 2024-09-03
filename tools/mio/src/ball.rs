@@ -1,4 +1,4 @@
-use bevy::prelude::{shape::UVSphere, *};
+use bevy::prelude::*;
 
 use crate::parameters::Parameters;
 
@@ -26,11 +26,9 @@ fn setup_ball(
     let field_dimensions = &parameters.field_dimensions;
     let base = asset_server.load("textures/ball_base.png");
     let normal = asset_server.load("textures/ball_normal.png");
-    let mesh = meshes.add(Mesh::from(UVSphere {
-        radius: field_dimensions.ball_radius,
-        sectors: 30,
-        stacks: 30,
-    }));
+    let mesh = meshes.add(Mesh::from(
+        Sphere::new(field_dimensions.ball_radius).mesh().uv(30, 30),
+    ));
     let material = materials.add(StandardMaterial {
         base_color: Color::WHITE,
         perceptual_roughness: 0.8,

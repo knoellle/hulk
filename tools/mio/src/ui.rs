@@ -79,17 +79,21 @@ impl egui_dock::TabViewer for TabViewer<'_> {
                         .ui(ui)
                         .changed()
                     {
-                        let communication = nao.communication.clone();
+                        let communication = nao.client.clone();
                         let address = format!("ws://{}:1337", nao.address);
                         runtime.spawn(async move {
                             communication.set_address(address).await;
                         });
                     };
                     if ui.checkbox(&mut nao.connected, "Connect").changed() {
-                        let communication = nao.communication.clone();
+                        let client = nao.client.clone();
                         let connected = nao.connected;
                         runtime.spawn(async move {
-                            communication.set_connect(connected).await;
+                            if connected {
+                                client.connect().await;
+                            } else {
+                                client.disconnect().await;
+                            }
                         });
                     };
                 }
@@ -169,10 +173,10 @@ fn set_camera_viewport(
         return;
     };
 
-    let scale_factor = window.scale_factor() * egui_settings.scale_factor;
+    let scale_factor = dbg!(window.scale_factor()) * dbg!(egui_settings.scale_factor);
 
-    let viewport_pos = ui_state.viewport.left_top().to_vec2() * scale_factor as f32;
-    let viewport_size = ui_state.viewport.size() * scale_factor as f32;
+    let viewport_pos = ui_state.viewport.left_top().to_vec2() * scale_factor;
+    let viewport_size = dbg!(ui_state.viewport.size()) * dbg!(scale_factor);
 
     camera.viewport = Some(Viewport {
         physical_position: UVec2::new(viewport_pos.x as u32, viewport_pos.y as u32),

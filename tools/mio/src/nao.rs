@@ -2,16 +2,16 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use communication::{
-    client::{Communication, ConnectionStatus, Cycler, CyclerOutput, Output, SubscriberMessage},
-    messages::Format,
+    client::{protocol::SubscriptionEvent, BinarySubscriptionHandle, Client, ClientHandle, Status},
+    messages::Path,
 };
-use nalgebra::{vector, Isometry2, Isometry3, Vector3};
+use coordinate_systems::{Field, Ground, Robot};
+use geometry::line_segment::LineSegment;
+use linear_algebra::{vector, Isometry2, Isometry3, Orientation3, Vector3};
 use serde::Deserialize;
-use tokio::sync::mpsc::Receiver;
 use types::{
     ball_position::BallPosition,
     joints::{arm::ArmJoints, head::HeadJoints, leg::LegJoints, Joints},
-    line::Line2,
 };
 use urdf_rs::Geometry;
 
@@ -184,15 +184,13 @@ fn setup_robot(
 }
 
 struct Subscription<T> {
-    receiver: Receiver<SubscriberMessage>,
+    receiver: BinarySubscriptionHandle,
     value: Option<T>,
 }
 
 impl<T> Subscription<T> {
-    async fn new(communication: &Communication, output: CyclerOutput) -> Self {
-        let (_, receiver) = communication
-            .subscribe_output(output, Format::Textual)
-            .await;
+    async fn new(communication: &ClientHandle, output: impl Into<Path>) -> Self {
+        let receiver = communication.subscribe_binary(output).await;
         Self {
             receiver,
             value: None,
@@ -205,8 +203,14 @@ where
     for<'de> T: Deserialize<'de>,
 {
     fn update(&mut self) {
-        while let Ok(SubscriberMessage::Update { value }) = self.receiver.try_recv() {
-            self.value = serde_json::from_value(value).ok();
+        while let Ok(message) = self.receiver.receiver.try_recv() {
+            match message.as_ref() {
+                SubscriptionEvent::Successful { value, .. }
+                | SubscriptionEvent::Update { value, .. } => {
+                    self.value = bincode::deserialize(value).ok()
+                }
+                SubscriptionEvent::Failure { error } => eprintln!("{error}"),
+            };
         }
     }
 }
@@ -215,80 +219,32 @@ where
 pub struct Nao {
     pub address: String,
     pub connected: bool,
-    pub communication: Communication,
+    pub client: ClientHandle,
     sensor_data: Subscription<Joints<f32>>,
-    robot_to_ground: Subscription<Option<Isometry3<f32>>>,
-    ground_to_field: Subscription<Option<Isometry2<f32>>>,
-    ball_position: Subscription<Option<BallPosition>>,
-    lines_in_ground_bottom: Subscription<Vec<Line2>>,
-    lines_in_ground_top: Subscription<Vec<Line2>>,
+    robot_to_ground: Subscription<Option<Isometry3<Robot, Ground>>>,
+    ground_to_field: Subscription<Option<Isometry2<Ground, Field>>>,
+    ball_position: Subscription<Option<BallPosition<Ground>>>,
+    lines_in_ground_bottom: Subscription<Vec<LineSegment<Ground>>>,
+    lines_in_ground_top: Subscription<Vec<LineSegment<Ground>>>,
     ball: Entity,
     joints: Joints<Entity>,
 }
 
 impl Nao {
     pub async fn new(links: &HashMap<String, Entity>, ball: Entity) -> Self {
-        let communication = Communication::new(None, false);
-        let sensor_data = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::Control,
-                output: Output::Main {
-                    path: "sensor_data.positions".to_string(),
-                },
-            },
-        )
-        .await;
-        let robot_to_ground = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::Control,
-                output: Output::Main {
-                    path: "robot_to_ground".to_string(),
-                },
-            },
-        )
-        .await;
-        let ground_to_field = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::Control,
-                output: Output::Main {
-                    path: "robot_to_field".to_string(),
-                },
-            },
-        )
-        .await;
-        let ball_position = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::Control,
-                output: Output::Main {
-                    path: "ball_position".to_string(),
-                },
-            },
-        )
-        .await;
-        let lines_in_ground_bottom = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::VisionBottom,
-                output: Output::Main {
-                    path: "line_data.lines_in_robot".to_string(),
-                },
-            },
-        )
-        .await;
-        let lines_in_ground_top = Subscription::new(
-            &communication,
-            CyclerOutput {
-                cycler: Cycler::VisionTop,
-                output: Output::Main {
-                    path: "line_data.lines_in_robot".to_string(),
-                },
-            },
-        )
-        .await;
+        let (client_object, client) = Client::new(String::new());
+        tokio::spawn(client_object.run());
+        let sensor_data =
+            Subscription::new(&client, "Control.main_outputs.sensor_data.positions").await;
+        let robot_to_ground =
+            Subscription::new(&client, "Control.main_outputs.robot_to_ground").await;
+        let ground_to_field =
+            Subscription::new(&client, "Control.main_outputs.ground_to_field").await;
+        let ball_position = Subscription::new(&client, "Control.main_outputs.ball_position").await;
+        let lines_in_ground_bottom =
+            Subscription::new(&client, "VisionBottom.main_outputs.line_data.lines").await;
+        let lines_in_ground_top =
+            Subscription::new(&client, "VisionTop.main_outputs.line_data.lines").await;
         let joints = Joints {
             head: HeadJoints {
                 yaw: *links.get("HeadYaw_link").unwrap(),
@@ -328,7 +284,7 @@ impl Nao {
             },
         };
         Self {
-            communication,
+            client,
             address: String::new(),
             connected: false,
             sensor_data,
@@ -343,15 +299,12 @@ impl Nao {
     }
 }
 
-fn handle_communication(mut naos: Query<(&Nao, &mut Visibility)>) {
+fn handle_communication(mut naos: Query<(&Nao, &mut Visibility)>, runtime: Res<AsyncRuntime>) {
     for (nao, mut visibility) in naos.iter_mut() {
-        let updates = &nao.communication.subscribe_connection_status_updates();
-        let status = updates.borrow();
-        match *status {
-            ConnectionStatus::Disconnected { .. } | ConnectionStatus::Connecting { .. } => {
-                *visibility = Visibility::Hidden
-            }
-            ConnectionStatus::Connected { .. } => *visibility = Visibility::Visible,
+        let status = runtime.runtime.block_on(nao.client.status());
+        *visibility = match status {
+            Status::Disconnected | Status::Connecting => Visibility::Hidden,
+            Status::Connected => Visibility::Visible,
         }
     }
 }
@@ -366,7 +319,7 @@ pub fn spawn_robot(
     runtime: Res<AsyncRuntime>,
     ball_assets: Res<BallAssets>,
 ) {
-    for _ in spawn_robot.iter() {
+    for _ in spawn_robot.read() {
         let ball = commands
             .spawn(Name::new("ball"))
             .insert(PbrBundle {
@@ -428,28 +381,28 @@ fn update_robot_transform(mut naos: Query<(&mut Nao, &mut Transform)>) {
             .robot_to_ground
             .value
             .unwrap_or_default()
-            .unwrap_or(Isometry3::translation(0., 0., FALLBACK_ROBOT_HEIGHT));
+            .unwrap_or(Isometry3::from_translation(0., 0., FALLBACK_ROBOT_HEIGHT));
         nao.ground_to_field.update();
         let ground_to_field = nao
             .ground_to_field
             .value
             .unwrap_or_default()
             .unwrap_or_default();
-        let ground_to_field_3 = Isometry3::new(
+        let ground_to_field_3 = Isometry3::<Ground, Field>::from_parts(
             vector![
-                ground_to_field.translation.x,
-                ground_to_field.translation.y,
+                ground_to_field.translation().x(),
+                ground_to_field.translation().y(),
                 0.
             ],
-            Vector3::z() * ground_to_field.rotation.angle(),
+            Orientation3::new(Vector3::z_axis() * ground_to_field.orientation().angle()),
         );
         let robot_to_field = ground_to_field_3 * robot_to_ground;
         transform.translation = Vec3::new(
-            robot_to_field.translation.x,
-            robot_to_field.translation.y,
-            robot_to_field.translation.z,
+            robot_to_field.translation().x(),
+            robot_to_field.translation().y(),
+            robot_to_field.translation().z(),
         );
-        let quaternion_coords = robot_to_field.rotation.coords;
+        let quaternion_coords = robot_to_field.inner.rotation.coords;
         transform.rotation = Quat::from_xyzw(
             quaternion_coords[0],
             quaternion_coords[1],
@@ -567,7 +520,7 @@ fn update_ball(
         match nao.ball_position.value {
             Some(Some(ball_position)) => {
                 let abs_ball = ground_to_field * ball_position.position;
-                *transform = Transform::from_xyz(abs_ball.x, abs_ball.y, ball_radius);
+                *transform = Transform::from_xyz(abs_ball.x(), abs_ball.y(), ball_radius);
                 *visibility = Visibility::Visible;
             }
             _ => {
@@ -593,9 +546,9 @@ fn update_lines(mut naos: Query<&mut Nao>, mut gizmos: Gizmos) {
             let start = ground_to_field * line.0;
             let end = ground_to_field * line.1;
             gizmos.line(
-                Vec3::new(start.x, start.y, 0.0),
-                Vec3::new(end.x, end.y, 0.0),
-                Color::RED,
+                Vec3::new(start.x(), start.y(), 0.0),
+                Vec3::new(end.x(), end.y(), 0.0),
+                Srgba::RED,
             );
         }
     }

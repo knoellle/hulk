@@ -1,9 +1,6 @@
 use std::f32::consts::PI;
 
-use bevy::prelude::{
-    shape::{Box, Cylinder, Quad},
-    *,
-};
+use bevy::prelude::*;
 
 use crate::{parameters::Parameters, ring::Ring};
 
@@ -26,107 +23,92 @@ fn setup_field(
         field_dimensions.length + field_dimensions.border_strip_width * 2.0,
         field_dimensions.width + field_dimensions.border_strip_width * 2.0,
     );
-    let line_material = materials.add(Color::rgb(1.0, 1.0, 1.0).into());
+    let line_material = materials.add(Color::srgb(1.0, 1.0, 1.0));
     let ground_line_size = Vec2::new(
         field_dimensions.line_width,
         field_dimensions.width + field_dimensions.line_width / 2.0 * 2.0,
     );
-    let ground_line = meshes.add(Quad::new(ground_line_size).into());
+    let ground_line = meshes.add(Rectangle::from_size(ground_line_size).mesh());
     let out_line_size = Vec2::new(
         field_dimensions.length + field_dimensions.line_width / 2.0 * 2.0,
         field_dimensions.line_width,
     );
-    let out_line = meshes.add(Quad::new(out_line_size).into());
-    let center_circle = meshes.add(
-        Ring::new(
-            field_dimensions.center_circle_diameter / 2.0 - field_dimensions.line_width / 2.0,
-            field_dimensions.center_circle_diameter / 2.0 + field_dimensions.line_width / 2.0,
-            64,
-        )
-        .into(),
-    );
+    let out_line = meshes.add(Rectangle::from_size(out_line_size).mesh());
+    let center_circle = meshes.add(Ring::new(
+        field_dimensions.center_circle_diameter / 2.0 - field_dimensions.line_width / 2.0,
+        field_dimensions.center_circle_diameter / 2.0 + field_dimensions.line_width / 2.0,
+        64,
+    ));
     let goal_box_area_side_line_size = Vec2::new(
         field_dimensions.goal_box_area_length + field_dimensions.line_width / 2.0 * 2.0,
         field_dimensions.line_width,
     );
-    let goal_box_area_side_line = meshes.add(Quad::new(goal_box_area_side_line_size).into());
+    let goal_box_area_side_line = meshes.add(Rectangle::from_size(goal_box_area_side_line_size));
     let goal_box_area_front_line_size = Vec2::new(
         field_dimensions.line_width,
         field_dimensions.goal_box_area_width + field_dimensions.line_width / 2.0 * 2.0,
     );
-    let goal_box_area_front_line = meshes.add(Quad::new(goal_box_area_front_line_size).into());
+    let goal_box_area_front_line = meshes.add(Rectangle::from_size(goal_box_area_front_line_size));
     let penalty_area_side_line_size = Vec2::new(
         field_dimensions.penalty_area_length + field_dimensions.line_width / 2.0 * 2.0,
         field_dimensions.line_width,
     );
-    let penalty_area_side_line = meshes.add(Quad::new(penalty_area_side_line_size).into());
+    let penalty_area_side_line = meshes.add(Rectangle::from_size(penalty_area_side_line_size));
     let penalty_area_front_line_size = Vec2::new(
         field_dimensions.line_width,
         field_dimensions.penalty_area_width + field_dimensions.line_width / 2.0 * 2.0,
     );
-    let penalty_area_front_line = meshes.add(Quad::new(penalty_area_front_line_size).into());
+    let penalty_area_front_line = meshes.add(Rectangle::from_size(penalty_area_front_line_size));
     let penalty_marker_dash_size = Vec2::new(
         field_dimensions.penalty_marker_size,
         field_dimensions.line_width,
     );
-    let penalty_marker_dash = meshes.add(Quad::new(penalty_marker_dash_size).into());
-    let goal_post_material = materials.add(Color::rgb(1.0, 1.0, 1.0).into());
+    let penalty_marker_dash = meshes.add(Rectangle::from_size(penalty_marker_dash_size));
+    let goal_post_material = materials.add(Color::srgb(1.0, 1.0, 1.0));
     const GOAL_POST_HEIGHT: f32 = 0.8;
     let goal_post = meshes.add(
-        Cylinder {
-            radius: field_dimensions.goal_post_diameter / 2.0,
-            height: GOAL_POST_HEIGHT,
-            resolution: 32,
-            segments: 1,
-        }
-        .into(),
+        Cylinder::new(field_dimensions.goal_post_diameter / 2.0, GOAL_POST_HEIGHT)
+            .mesh()
+            .resolution(32)
+            .segments(1),
     );
     let goal_crossbar = meshes.add(
-        Cylinder {
-            radius: field_dimensions.goal_post_diameter / 2.0,
-            height: field_dimensions.goal_inner_width + field_dimensions.goal_post_diameter * 2.0,
-            resolution: 32,
-            segments: 1,
-        }
-        .into(),
+        Cylinder::new(
+            field_dimensions.goal_post_diameter / 2.0,
+            field_dimensions.goal_inner_width + field_dimensions.goal_post_diameter * 2.0,
+        )
+        .mesh()
+        .resolution(32)
+        .segments(1),
     );
     const GOAL_SUPPORT_STRUCTURE_THICKNESS: f32 = 0.03;
     let goal_support_structure_x_length = field_dimensions.goal_depth
         - field_dimensions.line_width / 2.0
         + GOAL_SUPPORT_STRUCTURE_THICKNESS / 2.0
         - field_dimensions.goal_post_diameter / 2.0;
-    let goal_support_structure_x = meshes.add(
-        Box::new(
-            goal_support_structure_x_length,
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-        )
-        .into(),
-    );
+    let goal_support_structure_x = meshes.add(Cuboid::new(
+        goal_support_structure_x_length,
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+    ));
     let goal_support_structure_y_length = field_dimensions.goal_inner_width
         + field_dimensions.goal_post_diameter / 2.0 * 2.0
         + GOAL_SUPPORT_STRUCTURE_THICKNESS / 2.0 * 2.0;
-    let goal_support_structure_y = meshes.add(
-        Box::new(
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-            goal_support_structure_y_length,
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-        )
-        .into(),
-    );
+    let goal_support_structure_y = meshes.add(Cuboid::new(
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+        goal_support_structure_y_length,
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+    ));
     let goal_support_structure_z_length = GOAL_POST_HEIGHT;
-    let goal_support_structure_z = meshes.add(
-        Box::new(
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-            GOAL_SUPPORT_STRUCTURE_THICKNESS,
-            goal_support_structure_z_length,
-        )
-        .into(),
-    );
+    let goal_support_structure_z = meshes.add(Cuboid::new(
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+        GOAL_SUPPORT_STRUCTURE_THICKNESS,
+        goal_support_structure_z_length,
+    ));
 
     commands.spawn(Name::new("field")).insert(PbrBundle {
-        mesh: meshes.add(Quad::new(ground_size).into()),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        mesh: meshes.add(Rectangle::from_size(ground_size).mesh()),
+        material: materials.add(Color::srgb(0.3, 0.5, 0.3)),
         ..default()
     });
 

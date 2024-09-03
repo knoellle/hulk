@@ -2,7 +2,7 @@ use std::f32::consts::TAU;
 
 use bevy::{
     prelude::*,
-    render::{mesh::Indices, render_resource::PrimitiveTopology},
+    render::{mesh::Indices, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology},
 };
 
 pub struct Ring {
@@ -46,11 +46,14 @@ impl From<Ring> for Mesh {
         }
 
         let indices = (0..sides as u32 * 2).collect();
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleStrip);
+        let mut mesh = Mesh::new(
+            PrimitiveTopology::TriangleStrip,
+            RenderAssetUsages::default(),
+        );
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.set_indices(Some(Indices::U32(indices)));
+        mesh.insert_indices(Indices::U32(indices));
         mesh
     }
 }
