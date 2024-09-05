@@ -19,9 +19,9 @@ use buffered_watch::Receiver;
 use control::localization::generate_initial_pose;
 use coordinate_systems::{Field, Ground, Head, LeftSole, RightSole, Robot as RobotCoordinates};
 use framework::{future_queue, Producer, RecordingTrigger};
-use geometry::line_segment::LineSegment;
 use linear_algebra::{
-    vector, Isometry2, Isometry3, Orientation2, Orientation3, Point2, Rotation2, Vector2,
+    vector, Isometry2, Isometry3, Orientation2, Orientation3, Point2, Pose2, Pose3, Rotation2,
+    Rotation3, Vector2,
 };
 use parameters::directory::deserialize;
 use projection::camera_matrix::CameraMatrix;
@@ -32,9 +32,8 @@ use types::{
     hardware::Ids,
     joints::Joints,
     messages::{IncomingMessage, OutgoingMessage},
-    motion_command::{HeadMotion, KickVariant, MotionCommand, OrientationMode},
+    motion_command::HeadMotion,
     motion_selection::MotionSafeExits,
-    planned_path::PathSegment,
     robot_dimensions::RobotDimensions,
     sensor_data::Foot,
     support_foot::Side,
@@ -56,6 +55,8 @@ pub struct Robot {
     pub parameters: Parameters,
     pub last_kick_time: Duration,
     pub ball_last_seen: Option<SystemTime>,
+    pub anchor: Pose2<Field>,
+    pub anchor_side: Side,
 
     pub cycler: Cycler<Interfake>,
     control_receiver: Receiver<(SystemTime, Database)>,
@@ -126,6 +127,8 @@ impl Robot {
             parameters,
             last_kick_time: Duration::default(),
             ball_last_seen: None,
+            anchor: Pose2::zero(),
+            anchor_side: Side::Left,
 
             cycler,
             control_receiver,
@@ -220,86 +223,156 @@ pub fn from_player_number(val: PlayerNumber) -> usize {
 pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>, time: Res<Time>) {
     for mut robot in &mut robots {
         let parameters = &robot.parameters;
-        let mut ground_to_field_update: Option<Isometry2<Ground, Field>> = None;
+        let mut ground_to_field_change: Option<Isometry2<Ground, Ground>> = None;
 
-        let head_motion = match robot.database.main_outputs.motion_command.clone() {
-            MotionCommand::Walk {
-                head,
-                path,
-                orientation_mode,
-                ..
-            } => {
-                let steps_per_second = 1.0 / 0.35;
-                let steps_this_cycle = steps_per_second * time.delta_seconds();
-                let max_step = parameters.step_planner.max_step_size;
+        // let head_motion = match robot.database.main_outputs.motion_command.clone() {
+        //     MotionCommand::Walk {
+        //         head,
+        //         path,
+        //         orientation_mode,
+        //         ..
+        //     } => {
+        //         let steps_per_second = 1.0 / 0.35;
+        //         let steps_this_cycle = steps_per_second * time.delta_seconds();
+        //         let max_step = parameters.step_planner.max_step_size;
+        //
+        //         let target = match path[0] {
+        //             PathSegment::LineSegment(LineSegment(_start, end)) => end.coords(),
+        //             PathSegment::Arc(arc, direction) => {
+        //                 direction.rotate_vector_90_degrees(arc.start - arc.circle.center)
+        //             }
+        //         };
+        //
+        //         let orientation = match orientation_mode {
+        //             OrientationMode::AlignWithPath => {
+        //                 if target.norm_squared() < f32::EPSILON {
+        //                     Orientation2::identity()
+        //                 } else {
+        //                     Orientation2::from_vector(target)
+        //                 }
+        //             }
+        //             OrientationMode::Override(orientation) => orientation,
+        //         };
+        //         let step = target.cap_magnitude(max_step.forward * steps_this_cycle);
+        //
+        //         let rotation = orientation.angle().clamp(
+        //             -max_step.turn * steps_this_cycle,
+        //             max_step.turn * steps_this_cycle,
+        //         );
+        //         let movement = Isometry2::from_parts(step.as_point().coords(), rotation);
+        //         let old_ground_to_field = robot.ground_to_field();
+        //         let new_ground_to_field = old_ground_to_field * movement;
+        //         ground_to_field_update = Some(new_ground_to_field);
+        //
+        //         for obstacle in &mut robot.database.main_outputs.obstacles {
+        //             let obstacle_in_field = old_ground_to_field * obstacle.position;
+        //             obstacle.position = new_ground_to_field.inverse() * obstacle_in_field;
+        //         }
+        //
+        //         head
+        //     }
+        //     MotionCommand::InWalkKick {
+        //         head,
+        //         kick,
+        //         kicking_side,
+        //         strength,
+        //         ..
+        //     } => {
+        //         if let Some(ball) = ball.state.as_mut() {
+        //             let side = match kicking_side {
+        //                 Side::Left => -1.0,
+        //                 Side::Right => 1.0,
+        //             };
+        //
+        //             // TODO: Check if ball is even in range
+        //             // let kick_location = ground_to_field * ();
+        //             if (time.elapsed() - robot.last_kick_time).as_secs_f32() > 1.0 {
+        //                 let direction = match kick {
+        //                     KickVariant::Forward => vector![1.0, 0.0],
+        //                     KickVariant::Turn => vector![0.707, 0.707 * side],
+        //                     KickVariant::Side => vector![0.0, 1.0 * -side],
+        //                 };
+        //                 ball.velocity += robot.ground_to_field() * direction * strength * 2.5;
+        //                 robot.last_kick_time = time.elapsed();
+        //             };
+        //         }
+        //         head
+        //     }
+        //     MotionCommand::SitDown { head } => head,
+        //     MotionCommand::Stand { head } => head,
+        //     _ => HeadMotion::Center,
+        // };
 
-                let target = match path[0] {
-                    PathSegment::LineSegment(LineSegment(_start, end)) => end.coords(),
-                    PathSegment::Arc(arc, direction) => {
-                        direction.rotate_vector_90_degrees(arc.start - arc.circle.center)
-                    }
-                };
+        let (left_sole, right_sole) =
+            sole_positions(&robot.database.main_outputs.sensor_data.positions);
+        let support_foot = robot
+            .database
+            .main_outputs
+            .support_foot
+            .support_side
+            .unwrap();
+        if robot.anchor_side != support_foot {
+            robot.anchor_side = support_foot;
+            let support_sole = match support_foot {
+                Side::Left => left_sole,
+                Side::Right => right_sole,
+            };
+            let ground = robot.database.main_outputs.robot_to_ground.unwrap() * support_sole;
+            robot.anchor = robot.ground_to_field() * to2dp(ground);
+        }
 
-                let orientation = match orientation_mode {
-                    OrientationMode::AlignWithPath => {
-                        if target.norm_squared() < f32::EPSILON {
-                            Orientation2::identity()
-                        } else {
-                            Orientation2::from_vector(target)
-                        }
-                    }
-                    OrientationMode::Override(orientation) => orientation,
-                };
-                let step = target.cap_magnitude(max_step.forward * steps_this_cycle);
+        let target = robot.database.main_outputs.walk_motor_commands.positions;
+        robot.database.main_outputs.sensor_data.positions.left_leg =
+            robot.database.main_outputs.sensor_data.positions.left_leg
+                + (target.left_leg - robot.database.main_outputs.sensor_data.positions.left_leg)
+                    * time.delta_seconds()
+                    * 10.0;
+        robot.database.main_outputs.sensor_data.positions.right_leg =
+            robot.database.main_outputs.sensor_data.positions.right_leg
+                + (target.right_leg - robot.database.main_outputs.sensor_data.positions.right_leg)
+                    * time.delta_seconds()
+                    * 10.0;
 
-                let rotation = orientation.angle().clamp(
-                    -max_step.turn * steps_this_cycle,
-                    max_step.turn * steps_this_cycle,
-                );
-                let movement = Isometry2::from_parts(step.as_point().coords(), rotation);
-                let old_ground_to_field = robot.ground_to_field();
-                let new_ground_to_field = old_ground_to_field * movement;
-                ground_to_field_update = Some(new_ground_to_field);
-
-                for obstacle in &mut robot.database.main_outputs.obstacles {
-                    let obstacle_in_field = old_ground_to_field * obstacle.position;
-                    obstacle.position = new_ground_to_field.inverse() * obstacle_in_field;
-                }
-
-                head
-            }
-            MotionCommand::InWalkKick {
-                head,
-                kick,
-                kicking_side,
-                strength,
-                ..
-            } => {
-                if let Some(ball) = ball.state.as_mut() {
-                    let side = match kicking_side {
-                        Side::Left => -1.0,
-                        Side::Right => 1.0,
-                    };
-
-                    // TODO: Check if ball is even in range
-                    // let kick_location = ground_to_field * ();
-                    if (time.elapsed() - robot.last_kick_time).as_secs_f32() > 1.0 {
-                        let direction = match kick {
-                            KickVariant::Forward => vector![1.0, 0.0],
-                            KickVariant::Turn => vector![0.707, 0.707 * side],
-                            KickVariant::Side => vector![0.0, 1.0 * -side],
-                        };
-                        ball.velocity += robot.ground_to_field() * direction * strength * 2.5;
-                        robot.last_kick_time = time.elapsed();
-                    };
-                }
-                head
-            }
-            MotionCommand::SitDown { head } => head,
-            MotionCommand::Stand { head } => head,
-            _ => HeadMotion::Center,
+        let (new_left_sole, new_right_sole) =
+            sole_positions(&robot.database.main_outputs.sensor_data.positions);
+        robot.anchor_side = support_foot;
+        let support_sole = match support_foot {
+            Side::Left => left_sole,
+            Side::Right => right_sole,
         };
+        let ground = robot.database.main_outputs.robot_to_ground.unwrap() * support_sole;
+        let new_anchor = robot.ground_to_field() * to2dp(ground);
+        let correction = robot.anchor.as_transform() * new_anchor.as_transform::<Field>().inverse();
+        let step = robot.ground_to_field().inverse() * correction * robot.ground_to_field();
+        // let step = match robot
+        //     .database
+        //     .main_outputs
+        //     .support_foot
+        //     .support_side
+        //     .unwrap()
+        // {
+        //     Side::Left => to2d(
+        //         new_left_sole.as_transform::<Ground>().inverse()
+        //             * left_sole.as_transform::<Ground>(),
+        //     ),
+        //     Side::Right => to2d(
+        //         new_right_sole.as_transform::<Ground>().inverse()
+        //             * right_sole.as_transform::<Ground>(),
+        //     ),
+        // };
+        // if let Some(movement) = robot
+        //     .database
+        //     .main_outputs
+        //     .current_odometry_to_last_odometry
+        //     .map(Isometry2::<Ground, Ground>::wrap)
+        {
+            ground_to_field_change = Some(Isometry2::from_parts(
+                step.translation().coords(),
+                step.orientation().angle(),
+            ));
+        }
 
+        let head_motion = HeadMotion::Center;
         let desired_head_yaw = match head_motion {
             HeadMotion::ZeroAngles => 0.0,
             HeadMotion::Center => 0.0,
@@ -322,14 +395,19 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
         let movement = diff.clamp(-max_head_rotation_per_cycle, max_head_rotation_per_cycle);
 
         robot.database.main_outputs.sensor_data.positions.head.yaw += movement;
-        if let Some(new_ground_to_field) = ground_to_field_update {
+        if let Some(movement) = ground_to_field_change {
+            let old_ground_to_field = robot.ground_to_field();
+            let new_ground_to_field = old_ground_to_field * movement;
+
             *robot.ground_to_field_mut() = new_ground_to_field;
-            let orientation = new_ground_to_field.as_pose().orientation();
-            robot.database.main_outputs.robot_orientation = Some(Orientation3::from_euler_angles(
-                0.0,
-                0.0,
-                orientation.angle(),
-            ));
+            let orientation = robot
+                .database
+                .main_outputs
+                .robot_orientation
+                .as_mut()
+                .unwrap();
+            // *orientation = Rotation3::from_euler_angles(0.0, 0.0, -movement.orientation().angle())
+            //     * *orientation;
         }
     }
 }
@@ -394,20 +472,17 @@ pub fn cycle_robots(
         };
         robot.database.main_outputs.game_controller_state = Some(game_controller.state.clone());
         robot.cycler.cycler_state.ground_to_field = robot.ground_to_field();
+        robot.database.main_outputs.robot_orientation = Some(
+            robot
+                .database
+                .main_outputs
+                .robot_orientation
+                .unwrap_or_default(),
+        );
         robot.cycle(&messages_sent_last_cycle).unwrap();
 
         // Walking physics
         let target = robot.database.main_outputs.walk_motor_commands.positions;
-        robot.database.main_outputs.sensor_data.positions.left_leg =
-            robot.database.main_outputs.sensor_data.positions.left_leg
-                + (target.left_leg - robot.database.main_outputs.sensor_data.positions.left_leg)
-                    * time.delta_seconds()
-                    * 10.0;
-        robot.database.main_outputs.sensor_data.positions.right_leg =
-            robot.database.main_outputs.sensor_data.positions.right_leg
-                + (target.right_leg - robot.database.main_outputs.sensor_data.positions.right_leg)
-                    * time.delta_seconds()
-                    * 10.0;
         let way_to_go = (robot.database.main_outputs.sensor_data.positions.left_leg
             - target.left_leg)
             .into_iter()
@@ -418,9 +493,9 @@ pub fn cycle_robots(
                 .map(|x| x.abs())
                 .sum::<f32>();
 
-        let (left_sole_height, right_sole_height) =
-            sole_heights(&robot.database.main_outputs.sensor_data.positions);
-        let floor_height = right_sole_height.min(left_sole_height);
+        let (left_sole, right_sole) =
+            sole_positions(&robot.database.main_outputs.sensor_data.positions);
+        let floor_height = right_sole.position().z().min(left_sole.position().z());
         let grass_height = 0.001;
 
         let support_foot = robot
@@ -437,13 +512,13 @@ pub fn cycle_robots(
         };
 
         let left_sink = sole_sink(
-            left_sole_height,
+            left_sole.position().z(),
             floor_height,
             grass_height,
             left_step_end_bonus,
         );
         let right_sink = sole_sink(
-            right_sole_height,
+            right_sole.position().z(),
             floor_height,
             grass_height,
             right_step_end_bonus,
@@ -482,7 +557,7 @@ fn sole_sink(sole_height: f32, floor_height: f32, grass_height: f32, step_end_bo
     (sole_height - floor_height - grass_height).clamp(-grass_height, 0.0) + step_end_bonus
 }
 
-fn sole_heights(joint_positions: &Joints) -> (f32, f32) {
+fn sole_positions(joint_positions: &Joints) -> (Pose3<RobotCoordinates>, Pose3<RobotCoordinates>) {
     use kinematics::forward::*;
     // left leg
     let left_pelvis_to_robot = left_pelvis_to_robot(&joint_positions.left_leg);
@@ -512,8 +587,19 @@ fn sole_heights(joint_positions: &Joints) -> (f32, f32) {
     let right_sole_to_robot: Isometry3<RightSole, RobotCoordinates> =
         right_foot_to_robot * Isometry3::from(RobotDimensions::RIGHT_ANKLE_TO_RIGHT_SOLE);
 
-    (
-        left_sole_to_robot.as_pose().position().z(),
-        right_sole_to_robot.as_pose().position().z(),
+    (left_sole_to_robot.as_pose(), right_sole_to_robot.as_pose())
+}
+
+fn to2d<From, To>(iso: Isometry3<From, To>) -> Isometry2<From, To> {
+    Isometry2::from_parts(
+        iso.translation().coords().xy(),
+        iso.rotation().inner.euler_angles().2,
+    )
+}
+
+fn to2dp<To>(iso: Pose3<To>) -> Pose2<To> {
+    Pose2::from_parts(
+        iso.position().xy(),
+        Orientation2::new(iso.orientation().inner.euler_angles().2),
     )
 }
