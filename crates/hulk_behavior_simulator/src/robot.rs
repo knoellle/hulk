@@ -56,7 +56,7 @@ pub struct Robot {
     pub last_kick_time: Duration,
     pub ball_last_seen: Option<SystemTime>,
     pub anchor: Pose2<Field>,
-    pub anchor_side: Side,
+    pub anchor_side: Option<Side>,
 
     pub cycler: Cycler<Interfake>,
     control_receiver: Receiver<(SystemTime, Database)>,
@@ -128,7 +128,7 @@ impl Robot {
             last_kick_time: Duration::default(),
             ball_last_seen: None,
             anchor: Pose2::zero(),
-            anchor_side: Side::Left,
+            anchor_side: None,
 
             cycler,
             control_receiver,
@@ -305,15 +305,10 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
 
         let (left_sole, right_sole) =
             sole_positions(&robot.database.main_outputs.sensor_data.positions);
-        let support_foot = robot
-            .database
-            .main_outputs
-            .support_foot
-            .support_side
-            .unwrap();
+        let support_foot = robot.database.main_outputs.support_foot.support_side;
         if robot.anchor_side != support_foot {
             robot.anchor_side = support_foot;
-            let support_sole = match support_foot {
+            let support_sole = match support_foot.unwrap() {
                 Side::Left => left_sole,
                 Side::Right => right_sole,
             };
@@ -336,7 +331,7 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
         let (new_left_sole, new_right_sole) =
             sole_positions(&robot.database.main_outputs.sensor_data.positions);
         robot.anchor_side = support_foot;
-        let support_sole = match support_foot {
+        let support_sole = match support_foot.unwrap() {
             Side::Left => left_sole,
             Side::Right => right_sole,
         };
