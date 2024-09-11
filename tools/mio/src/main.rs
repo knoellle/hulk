@@ -58,14 +58,14 @@ fn setup_camera(mut commands: Commands) {
 fn setup_light(mut commands: Commands) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.05,
+        brightness: 2000.0,
     });
     commands
         .spawn(Name::new("sun"))
         .insert(DirectionalLightBundle {
             directional_light: DirectionalLight {
                 shadows_enabled: true,
-                illuminance: 20000.0,
+                illuminance: 5000.0,
                 ..default()
             },
             transform: Transform {

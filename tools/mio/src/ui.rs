@@ -178,9 +178,9 @@ fn set_camera_viewport(
     let viewport_pos = ui_state.viewport.left_top().to_vec2() * scale_factor;
     let viewport_size = dbg!(ui_state.viewport.size()) * dbg!(scale_factor);
 
-    camera.viewport = Some(Viewport {
-        physical_position: UVec2::new(viewport_pos.x as u32, viewport_pos.y as u32),
-        physical_size: UVec2::new(viewport_size.x as u32, viewport_size.y as u32),
-        depth: 0.0..1.0,
-    });
+    // camera.viewport = Some(Viewport {
+    //     physical_position: UVec2::new(viewport_pos.x as u32, viewport_pos.y as u32),
+    //     physical_size: UVec2::new(viewport_size.x as u32, viewport_size.y as u32),
+    //     depth: 0.0..1.0,
+    // });
 }

@@ -106,9 +106,11 @@ fn setup_field(
         goal_support_structure_z_length,
     ));
 
+    let mut material: StandardMaterial = Color::srgb(0.3, 0.5, 0.3).into();
+    material.perceptual_roughness = 1.0;
     commands.spawn(Name::new("field")).insert(PbrBundle {
         mesh: meshes.add(Rectangle::from_size(ground_size).mesh()),
-        material: materials.add(Color::srgb(0.3, 0.5, 0.3)),
+        material: materials.add(material),
         ..default()
     });
 
