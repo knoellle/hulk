@@ -326,6 +326,16 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
                 + (target.right_leg - robot.database.main_outputs.sensor_data.positions.right_leg)
                     * time.delta_seconds()
                     * 10.0;
+        robot.database.main_outputs.sensor_data.positions.left_arm =
+            robot.database.main_outputs.sensor_data.positions.left_arm
+                + (target.left_arm - robot.database.main_outputs.sensor_data.positions.left_arm)
+                    * time.delta_seconds()
+                    * 10.0;
+        robot.database.main_outputs.sensor_data.positions.right_arm =
+            robot.database.main_outputs.sensor_data.positions.right_arm
+                + (target.right_arm - robot.database.main_outputs.sensor_data.positions.right_arm)
+                    * time.delta_seconds()
+                    * 10.0;
 
         let (new_left_sole, new_right_sole) =
             sole_positions(&robot.database.main_outputs.sensor_data.positions);
@@ -498,7 +508,7 @@ pub fn cycle_robots(
             .support_foot
             .support_side
             .unwrap();
-        let step_ended = way_to_go < 0.01;
+        let step_ended = way_to_go < 0.3;
         let (left_step_end_bonus, right_step_end_bonus) = match (step_ended, support_foot) {
             (false, _) => (0.0, 0.0),
             (true, Side::Left) => (0.0, 0.5),
