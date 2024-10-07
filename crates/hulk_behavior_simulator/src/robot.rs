@@ -20,8 +20,7 @@ use control::localization::generate_initial_pose;
 use coordinate_systems::{Field, Ground, Head, LeftSole, RightSole, Robot as RobotCoordinates};
 use framework::{future_queue, Producer, RecordingTrigger};
 use linear_algebra::{
-    vector, Isometry2, Isometry3, Orientation2, Orientation3, Point2, Pose2, Pose3, Rotation2,
-    Rotation3, Vector2,
+    vector, Isometry2, Isometry3, Orientation2, Point2, Pose2, Pose3, Rotation2, Vector2,
 };
 use parameters::directory::deserialize;
 use projection::camera_matrix::CameraMatrix;
@@ -313,7 +312,7 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
                 Side::Right => right_sole,
             };
             let ground = robot.database.main_outputs.robot_to_ground.unwrap() * support_sole;
-            robot.anchor = robot.ground_to_field() * to2dp(ground);
+            robot.anchor = robot.ground_to_field() * to2d(ground);
         }
 
         let target = robot.database.main_outputs.walk_motor_commands.positions;
@@ -336,7 +335,7 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
             Side::Right => right_sole,
         };
         let ground = robot.database.main_outputs.robot_to_ground.unwrap() * support_sole;
-        let new_anchor = robot.ground_to_field() * to2dp(ground);
+        let new_anchor = robot.ground_to_field() * to2d(ground);
         let correction = robot.anchor.as_transform() * new_anchor.as_transform::<Field>().inverse();
         let step = robot.ground_to_field().inverse() * correction * robot.ground_to_field();
         // let step = match robot
@@ -585,14 +584,7 @@ fn sole_positions(joint_positions: &Joints) -> (Pose3<RobotCoordinates>, Pose3<R
     (left_sole_to_robot.as_pose(), right_sole_to_robot.as_pose())
 }
 
-fn to2d<From, To>(iso: Isometry3<From, To>) -> Isometry2<From, To> {
-    Isometry2::from_parts(
-        iso.translation().coords().xy(),
-        iso.rotation().inner.euler_angles().2,
-    )
-}
-
-fn to2dp<To>(iso: Pose3<To>) -> Pose2<To> {
+fn to2d<To>(iso: Pose3<To>) -> Pose2<To> {
     Pose2::from_parts(
         iso.position().xy(),
         Orientation2::new(iso.orientation().inner.euler_angles().2),
