@@ -105,14 +105,11 @@ fn game_controller_controller(
         GameState::Finished => {}
     }
 
-    if let (Some(_), _) = (
-        game_controller.state.sub_state,
-        game_controller.state.kicking_team,
-    ) {
-        if time.elapsed_seconds() - state.last_state_change.elapsed_seconds() > 30.0 {
-            game_controller.state.sub_state = None;
-            state.last_state_change = time.as_generic();
-        }
+    if game_controller.state.sub_state.is_some()
+        && time.elapsed_seconds() - state.last_state_change.elapsed_seconds() > 30.0
+    {
+        game_controller.state.sub_state = None;
+        state.last_state_change = time.as_generic();
     }
 }
 
