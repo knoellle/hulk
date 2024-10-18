@@ -12,7 +12,7 @@ use hulk_behavior_simulator::{
 };
 
 #[scenario]
-fn golden_goal(app: &mut App) {
+fn reappearing_ball_in_front_of_keeper(app: &mut App) {
     app.add_systems(Startup, startup);
     app.add_systems(Update, update);
 }

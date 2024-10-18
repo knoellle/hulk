@@ -12,7 +12,7 @@ use hulk_behavior_simulator::{
 };
 
 #[scenario]
-fn golden_goal(app: &mut App) {
+fn walk_around_ball(app: &mut App) {
     app.add_systems(Startup, startup);
     app.add_systems(Update, update);
 }

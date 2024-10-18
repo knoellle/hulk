@@ -10,7 +10,7 @@ use hulk_behavior_simulator::{
 };
 
 #[scenario]
-fn golden_goal(app: &mut App) {
+fn kick_in(app: &mut App) {
     app.add_systems(Startup, startup);
     app.add_systems(Update, update);
 }
