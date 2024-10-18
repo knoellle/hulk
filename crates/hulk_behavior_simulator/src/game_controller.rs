@@ -66,7 +66,7 @@ fn game_controller_controller(
             GameControllerCommand::SetSubState(sub_state, team) => {
                 game_controller.state.sub_state = sub_state;
                 game_controller.state.kicking_team = team;
-                if matches!(sub_state, Some(SubState::PenaltyKick)) {
+                if sub_state == Some(SubState::PenaltyKick) {
                     game_controller.state.game_state = GameState::Ready;
                 }
                 state.last_state_change = time.as_generic();
@@ -105,7 +105,7 @@ fn game_controller_controller(
         GameState::Finished => {}
     }
 
-    if let (Some(_), Team::Opponent) = (
+    if let (Some(_), _) = (
         game_controller.state.sub_state,
         game_controller.state.kicking_team,
     ) {
