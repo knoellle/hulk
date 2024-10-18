@@ -35,17 +35,12 @@ fn startup(
 }
 
 fn update(
-    game_controller: ResMut<GameController>,
     time: Res<Time<Ticks>>,
     mut ball: ResMut<BallResource>,
     mut exit: EventWriter<AppExit>,
 ) {
     if time.ticks() == 2800 {
         ball.state = None;
-    }
-    if game_controller.state.hulks_team.score > 0 {
-        println!("Done");
-        exit.send(AppExit::Success);
     }
     if time.ticks() >= 10_000 {
         println!("Done");

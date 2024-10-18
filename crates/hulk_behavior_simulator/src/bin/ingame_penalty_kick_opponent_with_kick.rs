@@ -54,12 +54,12 @@ fn update(
             ball.velocity = vector![-2.0, 0.0];
         }
     }
-    if game_controller.state.hulks_team.score > 0 {
-        println!("Done");
-        exit.send(AppExit::Success);
+    if game_controller.state.opponent_team.score > 0 {
+        println!("Failed to prevent opponents from scoring");
+        exit.send(AppExit::from_code(1));
     }
     if time.ticks() >= 10_000 {
-        println!("No goal was scored :)");
+        println!("Done");
         exit.send(AppExit::Success);
     }
 }

@@ -26,7 +26,6 @@ fn startup(
 }
 
 fn update(
-    game_controller: ResMut<GameController>,
     time: Res<Time<Ticks>>,
     mut ball: ResMut<BallResource>,
     mut exit: EventWriter<AppExit>,
@@ -35,10 +34,6 @@ fn update(
         if let Some(ball) = ball.state.as_mut() {
             ball.position = point![0.0, 0.0];
         }
-    }
-    if game_controller.state.hulks_team.score > 0 {
-        println!("Done");
-        exit.send(AppExit::Success);
     }
     if time.ticks() >= 10_000 {
         println!("Done");
