@@ -221,86 +221,7 @@ pub fn from_player_number(val: PlayerNumber) -> usize {
 
 pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>, time: Res<Time>) {
     for mut robot in &mut robots {
-        let parameters = &robot.parameters;
         let mut ground_to_field_change: Option<Isometry2<Ground, Ground>> = None;
-
-        // let head_motion = match robot.database.main_outputs.motion_command.clone() {
-        //     MotionCommand::Walk {
-        //         head,
-        //         path,
-        //         orientation_mode,
-        //         ..
-        //     } => {
-        //         let steps_per_second = 1.0 / 0.35;
-        //         let steps_this_cycle = steps_per_second * time.delta_seconds();
-        //         let max_step = parameters.step_planner.max_step_size;
-        //
-        //         let target = match path[0] {
-        //             PathSegment::LineSegment(LineSegment(_start, end)) => end.coords(),
-        //             PathSegment::Arc(arc, direction) => {
-        //                 direction.rotate_vector_90_degrees(arc.start - arc.circle.center)
-        //             }
-        //         };
-        //
-        //         let orientation = match orientation_mode {
-        //             OrientationMode::AlignWithPath => {
-        //                 if target.norm_squared() < f32::EPSILON {
-        //                     Orientation2::identity()
-        //                 } else {
-        //                     Orientation2::from_vector(target)
-        //                 }
-        //             }
-        //             OrientationMode::Override(orientation) => orientation,
-        //         };
-        //         let step = target.cap_magnitude(max_step.forward * steps_this_cycle);
-        //
-        //         let rotation = orientation.angle().clamp(
-        //             -max_step.turn * steps_this_cycle,
-        //             max_step.turn * steps_this_cycle,
-        //         );
-        //         let movement = Isometry2::from_parts(step.as_point().coords(), rotation);
-        //         let old_ground_to_field = robot.ground_to_field();
-        //         let new_ground_to_field = old_ground_to_field * movement;
-        //         ground_to_field_update = Some(new_ground_to_field);
-        //
-        //         for obstacle in &mut robot.database.main_outputs.obstacles {
-        //             let obstacle_in_field = old_ground_to_field * obstacle.position;
-        //             obstacle.position = new_ground_to_field.inverse() * obstacle_in_field;
-        //         }
-        //
-        //         head
-        //     }
-        //     MotionCommand::InWalkKick {
-        //         head,
-        //         kick,
-        //         kicking_side,
-        //         strength,
-        //         ..
-        //     } => {
-        //         if let Some(ball) = ball.state.as_mut() {
-        //             let side = match kicking_side {
-        //                 Side::Left => -1.0,
-        //                 Side::Right => 1.0,
-        //             };
-        //
-        //             // TODO: Check if ball is even in range
-        //             // let kick_location = ground_to_field * ();
-        //             if (time.elapsed() - robot.last_kick_time).as_secs_f32() > 1.0 {
-        //                 let direction = match kick {
-        //                     KickVariant::Forward => vector![1.0, 0.0],
-        //                     KickVariant::Turn => vector![0.707, 0.707 * side],
-        //                     KickVariant::Side => vector![0.0, 1.0 * -side],
-        //                 };
-        //                 ball.velocity += robot.ground_to_field() * direction * strength * 2.5;
-        //                 robot.last_kick_time = time.elapsed();
-        //             };
-        //         }
-        //         head
-        //     }
-        //     MotionCommand::SitDown { head } => head,
-        //     MotionCommand::Stand { head } => head,
-        //     _ => HeadMotion::Center,
-        // };
 
         let (left_sole, right_sole) =
             sole_positions(&robot.database.main_outputs.sensor_data.positions);
@@ -341,8 +262,8 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
             sole_positions(&robot.database.main_outputs.sensor_data.positions);
         robot.anchor_side = support_foot;
         let support_sole = match support_foot.unwrap() {
-            Side::Left => left_sole,
-            Side::Right => right_sole,
+            Side::Left => new_left_sole,
+            Side::Right => new_right_sole,
         };
         let ground = robot.database.main_outputs.robot_to_ground.unwrap() * support_sole;
         let new_anchor = robot.ground_to_field() * to2d(ground);
@@ -404,14 +325,6 @@ pub fn move_robots(mut robots: Query<&mut Robot>, mut ball: ResMut<BallResource>
             let new_ground_to_field = old_ground_to_field * movement;
 
             *robot.ground_to_field_mut() = new_ground_to_field;
-            let orientation = robot
-                .database
-                .main_outputs
-                .robot_orientation
-                .as_mut()
-                .unwrap();
-            // *orientation = Rotation3::from_euler_angles(0.0, 0.0, -movement.orientation().angle())
-            //     * *orientation;
         }
     }
 }
