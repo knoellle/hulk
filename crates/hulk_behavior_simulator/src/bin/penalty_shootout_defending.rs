@@ -48,12 +48,12 @@ fn update(
     mut exit: EventWriter<AppExit>,
     mut robots: Query<&mut Robot>,
 ) {
-    if time.ticks() == 2200 {
+    if time.ticks() == 2 {
         if let Some(ball) = ball.state.as_mut() {
             ball.velocity = vector![-2.5, -0.4];
         }
     }
-    if time.ticks() > 2200 {
+    if time.ticks() > 2 {
         if let Some(ball) = ball.state.as_mut() {
             if ball.velocity.norm() < 0.01 {
                 println!("Prevented opponent from scoring!");
