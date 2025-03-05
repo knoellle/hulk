@@ -387,7 +387,8 @@ impl RoleAssignment {
                 player_number: *context.player_number,
                 pose,
                 ball_position,
-                time_to_reach_kick_position: context.time_to_reach_kick_position.copied(),
+                time_to_reach_kick_position: *context.time_to_reach_kick_position.unwrap(),
+                // time_to_reach_kick_position: context.time_to_reach_kick_position.copied(),
             })))
             .wrap_err("failed to write StrikerMessage to hardware")
     }
@@ -457,7 +458,7 @@ enum Event {
 #[derive(Clone, Copy, Debug)]
 struct StrikerEvent {
     player_number: PlayerNumber,
-    time_to_reach_kick_position: Option<Duration>,
+    time_to_reach_kick_position: Duration,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -580,7 +581,7 @@ fn claim_striker_or_other_role(
     optional_roles: &[Role],
 ) -> Role {
     let shorter_time_to_reach =
-        time_to_reach_kick_position < striker_event.time_to_reach_kick_position;
+        time_to_reach_kick_position.unwrap() < striker_event.time_to_reach_kick_position;
     let time_to_reach_viable =
         time_to_reach_kick_position.is_some_and(|duration| duration < Duration::from_secs(1200));
 
