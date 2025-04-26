@@ -24,11 +24,14 @@ pub trait WriteToFile {
 
 impl WriteToFile for TokenStream {
     fn write_to_file(self, file_name: impl AsRef<Path>) -> Result<(), Error> {
+        let out_dir = var("OUT_DIR")?;
+        let file_path = PathBuf::from(out_dir).join(file_name);
+
+        let mut file = File::create(&file_path)?;
+        write!(file, "{self}")?;
         let syntax_tree = syn::parse2(self)?;
         let pretty = prettyplease::unparse(&syntax_tree);
 
-        let out_dir = var("OUT_DIR")?;
-        let file_path = PathBuf::from(out_dir).join(file_name);
         let mut file = File::create(file_path)?;
         write!(file, "{pretty}")?;
 

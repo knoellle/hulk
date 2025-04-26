@@ -481,12 +481,16 @@ fn generate_cycle_method(cycler: &Cycler, cyclers: &Cyclers, mode: CyclerMode) -
         },
         CyclerKind::RealTime => {
             let perception_cycler_updates = generate_perception_cycler_updates(cyclers);
+            let perception_cycler_barrier_times = generate_perception_cycler_barrier_times(cyclers);
 
             quote! {
                 #post_setup
-                self.perception_databases.update(now, crate::perception_databases::Updates {
+                let updates = crate::perception_databases::Updates {
                     #perception_cycler_updates
-                });
+                };
+                #perception_cycler_barrier_times
+
+                self.perception_databases.update(now, updates);
             }
         }
     };
@@ -699,7 +703,7 @@ fn generate_cross_inputs_recording(
                     &[
                         self
                             .perception_databases
-                            .persistent()
+                            .persistent_since(None)
                             .map(|(system_time, databases)| (
                                 *system_time,
                                 databases
@@ -712,7 +716,7 @@ fn generate_cross_inputs_recording(
                             .collect::<std::collections::BTreeMap<_, _>>(),
                         self
                             .perception_databases
-                            .temporary()
+                            .temporary_after(None)
                             .map(|(system_time, databases)| (
                                 *system_time,
                                 databases
@@ -843,6 +847,20 @@ fn generate_perception_cycler_updates(cyclers: &Cyclers) -> TokenStream {
             let consumer = format_ident!("{}_consumer", identifier);
             quote! {
                 #identifier: self.#consumer.consume(now),
+            }
+        })
+        .collect()
+}
+
+fn generate_perception_cycler_barrier_times(cyclers: &Cyclers) -> TokenStream {
+    cyclers
+        .instances_with(CyclerKind::Perception)
+        .map(|(_cycler, instance)| {
+            let instance_name = format_ident!("{}", instance.to_case(Case::Snake));
+            let barrier_time_identifier =
+                format_ident!("{}_first_timestamp_of_temporary_database", instance_name);
+            quote! {
+                let #barrier_time_identifier = updates.#instance_name.first_timestamp_of_non_finalized_database;
             }
         })
         .collect()
@@ -1066,6 +1084,20 @@ fn generate_required_input_condition(
 }
 
 fn generate_context_initializers(node: &Node, cycler: &Cycler, mode: CyclerMode) -> TokenStream {
+    let relevant_perception_cycler_instances_barrier_times: Vec<_> = node
+        .contexts
+        .cycle_context
+        .iter()
+        .filter_map(|field| match field {
+            Field::PerceptionInput {
+                cycler_instance, ..
+            } => Some(format_ident!(
+                "{}_first_timestamp_of_temporary_database",
+                cycler_instance.to_case(Case::Snake)
+            )),
+            _ => None,
+        })
+        .collect();
     let initializers = node
             .contexts
             .cycle_context
@@ -1271,11 +1303,16 @@ fn generate_context_initializers(node: &Node, cycler: &Cycler, mode: CyclerMode)
                                 ReferenceKind::Immutable,
                                 cycler,
                             );
+                            let barrier_time = quote! {
+                                [
+                                    #(#relevant_perception_cycler_instances_barrier_times,)*
+                                ].into_iter().min().flatten()
+                            };
                             quote! {
                                 framework::PerceptionInput {
                                     persistent: self
                                         .perception_databases
-                                        .persistent()
+                                        .persistent_since(#barrier_time)
                                         .map(|(system_time, databases)| (
                                             *system_time,
                                             databases
@@ -1288,7 +1325,7 @@ fn generate_context_initializers(node: &Node, cycler: &Cycler, mode: CyclerMode)
                                         .collect(),
                                     temporary: self
                                         .perception_databases
-                                        .temporary()
+                                        .temporary_after(#barrier_time)
                                         .map(|(system_time, databases)| (
                                             *system_time,
                                             databases
