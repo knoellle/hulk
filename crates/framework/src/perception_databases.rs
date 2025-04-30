@@ -49,16 +49,15 @@ where
     //     }
     // }
 
-    pub fn persistent_since(
+    pub fn persistent_in_range(
         &self,
-        first_timestamp_of_temporary_databases: Option<SystemTime>,
+        range: std::ops::Range<Option<SystemTime>>,
     ) -> Range<SystemTime, Databases> {
-        if let Some(first_timestamp_of_temporary_databases) = first_timestamp_of_temporary_databases
-        {
-            self.databases
-                .range(..first_timestamp_of_temporary_databases)
-        } else {
-            self.databases.range(..)
+        match (range.start, range.end) {
+            (Some(start), Some(end)) => self.databases.range(start..end),
+            (None, Some(end)) => self.databases.range(..end),
+            (Some(start), None) => self.databases.range(start..),
+            (None, None) => self.databases.range(..),
         }
     }
 

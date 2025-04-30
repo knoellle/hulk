@@ -29,6 +29,7 @@ impl WriteToFile for TokenStream {
 
         let mut file = File::create(&file_path)?;
         write!(file, "{self}")?;
+
         let syntax_tree = syn::parse2(self)?;
         let pretty = prettyplease::unparse(&syntax_tree);
 

@@ -52,6 +52,15 @@ fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
             }
         });
 
+    let barrier_fields =
+        cyclers
+            .instances_with(CyclerKind::Perception)
+            .map(|(_cycler, instance)| {
+                let field_name_identifier = format_ident!("{}", instance.to_case(Case::Snake));
+                quote! {
+                    pub #field_name_identifier: Option<std::time::SystemTime>
+                }
+            });
     quote! {
         pub struct Updates {
             #(#updates_fields,)*
@@ -65,6 +74,11 @@ fn generate_perception_updates(cyclers: &Cyclers) -> TokenStream {
             fn push_to_databases(self, databases: &mut std::collections::BTreeMap<std::time::SystemTime, Databases>) {
                 #(#push_loops)*
             }
+        }
+
+        #[derive(Default, Copy, Clone)]
+        pub struct BarrierTimes {
+            #(#barrier_fields,)*
         }
     }
 }
