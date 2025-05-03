@@ -53,6 +53,9 @@ where
         &self,
         range: std::ops::Range<Option<SystemTime>>,
     ) -> Range<SystemTime, Databases> {
+        // if range.start.is_some() || range.end.is_some() {
+        //     println!("{:?} .. {:?}", range.start, range.end);
+        // }
         match (range.start, range.end) {
             (Some(start), Some(end)) => self.databases.range(start..end),
             (None, Some(end)) => self.databases.range(..end),

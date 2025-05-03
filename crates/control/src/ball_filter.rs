@@ -28,6 +28,7 @@ use walking_engine::mode::Mode;
 #[derive(Deserialize, Serialize)]
 pub struct BallFilter {
     ball_filter: BallFiltering,
+    seen_sequence_number: usize,
 }
 
 #[context]
@@ -43,6 +44,11 @@ pub struct CycleContext {
     filtered_balls_in_image_top:
         AdditionalOutput<Vec<Circle<Pixel>>, "filtered_balls_in_image_top">,
 
+    vision_top_temporaries: AdditionalOutput<usize, "c.vision_top.temporaries">,
+    vision_top_persistent: AdditionalOutput<usize, "c.vision_top.persistent">,
+    vision_bottom_temporaries: AdditionalOutput<usize, "c.vision_bottom.temporaries">,
+    vision_bottom_persistent: AdditionalOutput<usize, "c.vision_bottom.persistent">,
+
     current_odometry_to_last_odometry:
         HistoricInput<Option<nalgebra::Isometry2<f32>>, "current_odometry_to_last_odometry?">,
     historic_camera_matrices: HistoricInput<Option<CameraMatrices>, "camera_matrices?">,
@@ -57,6 +63,7 @@ pub struct CycleContext {
 
     balls_bottom: PerceptionInput<Option<Vec<BallPercept>>, "VisionBottom", "balls?">,
     balls_top: PerceptionInput<Option<Vec<BallPercept>>, "VisionTop", "balls?">,
+    sequence_number_top: PerceptionInput<usize, "VisionTop", "sequence_number">,
     projected_limbs: PerceptionInput<Option<ProjectedLimbs>, "VisionBottom", "projected_limbs?">,
     walking_engine_mode: CyclerState<Mode, "walking_engine_mode">,
 }
@@ -68,10 +75,109 @@ pub struct MainOutputs {
     pub hypothetical_ball_positions: MainOutput<Vec<HypotheticalBallPosition<Ground>>>,
 }
 
+fn sum_updates<T>(input: &BTreeMap<SystemTime, T>) -> usize {
+    input.len()
+}
+
 impl BallFilter {
     pub fn new(_context: CreationContext) -> Result<Self> {
         Ok(Self {
             ball_filter: Default::default(),
+            seen_sequence_number: 0,
+        })
+    }
+
+    pub fn cycle(&mut self, mut context: CycleContext) -> Result<MainOutputs> {
+        context
+            .vision_top_temporaries
+            .fill_if_subscribed(|| sum_updates(&context.balls_top.temporary));
+        context
+            .vision_top_persistent
+            .fill_if_subscribed(|| sum_updates(&context.balls_top.persistent));
+        context
+            .vision_bottom_temporaries
+            .fill_if_subscribed(|| sum_updates(&context.balls_bottom.temporary));
+        context
+            .vision_bottom_persistent
+            .fill_if_subscribed(|| sum_updates(&context.balls_bottom.persistent));
+
+        for x in context
+            .sequence_number_top
+            .persistent
+            .iter()
+            .flat_map(|x| x.1)
+        {
+            println!("seq: {}", x);
+            if self.seen_sequence_number != 0 {
+                assert_eq!(self.seen_sequence_number + 1, **x);
+            }
+            self.seen_sequence_number = **x;
+        }
+
+        let persistent_updates = time_ordered_balls(
+            context.balls_top.persistent,
+            context.balls_bottom.persistent,
+        );
+
+        let filter_parameters = context.ball_filter_configuration;
+        self.advance_all_hypotheses(
+            persistent_updates,
+            context.current_odometry_to_last_odometry,
+            context.historic_camera_matrices,
+            context.had_ground_contact,
+            context.historic_cycle_times,
+            context.projected_limbs,
+            filter_parameters,
+            context.field_dimensions,
+            context.cycle_time,
+            *context.walking_engine_mode,
+        );
+
+        context
+            .filter_state
+            .fill_if_subscribed(|| self.ball_filter.clone());
+
+        let best_hypothesis = self
+            .ball_filter
+            .best_hypothesis(filter_parameters.validity_output_threshold);
+        context
+            .best_ball_hypothesis
+            .fill_if_subscribed(|| best_hypothesis.cloned());
+
+        let filtered_ball = best_hypothesis.map(|hypothesis| hypothesis.position());
+
+        let output_balls: Vec<_> = self
+            .ball_filter
+            .hypotheses
+            .iter()
+            .filter_map(|hypothesis| {
+                if hypothesis.validity >= filter_parameters.validity_output_threshold {
+                    Some(hypothesis.position())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let ball_radius = context.field_dimensions.ball_radius;
+        context.filtered_balls_in_image_top.fill_if_subscribed(|| {
+            context.camera_matrices.map_or(vec![], |camera_matrices| {
+                project_to_image(&output_balls, &camera_matrices.top, ball_radius)
+            })
+        });
+        context
+            .filtered_balls_in_image_bottom
+            .fill_if_subscribed(|| {
+                context.camera_matrices.map_or(vec![], |camera_matrices| {
+                    project_to_image(&output_balls, &camera_matrices.bottom, ball_radius)
+                })
+            });
+
+        Ok(MainOutputs {
+            ball_position: filtered_ball.into(),
+            hypothetical_ball_positions: self
+                .hypothetical_ball_positions(filter_parameters.validity_output_threshold)
+                .into(),
         })
     }
 
@@ -213,74 +319,6 @@ impl BallFilter {
         self.ball_filter
             .hypotheses
             .truncate(filter_parameters.maximum_number_of_hypotheses);
-    }
-
-    pub fn cycle(&mut self, mut context: CycleContext) -> Result<MainOutputs> {
-        let persistent_updates = time_ordered_balls(
-            context.balls_top.persistent,
-            context.balls_bottom.persistent,
-        );
-
-        let filter_parameters = context.ball_filter_configuration;
-        self.advance_all_hypotheses(
-            persistent_updates,
-            context.current_odometry_to_last_odometry,
-            context.historic_camera_matrices,
-            context.had_ground_contact,
-            context.historic_cycle_times,
-            context.projected_limbs,
-            filter_parameters,
-            context.field_dimensions,
-            context.cycle_time,
-            *context.walking_engine_mode,
-        );
-
-        context
-            .filter_state
-            .fill_if_subscribed(|| self.ball_filter.clone());
-
-        let best_hypothesis = self
-            .ball_filter
-            .best_hypothesis(filter_parameters.validity_output_threshold);
-        context
-            .best_ball_hypothesis
-            .fill_if_subscribed(|| best_hypothesis.cloned());
-
-        let filtered_ball = best_hypothesis.map(|hypothesis| hypothesis.position());
-
-        let output_balls: Vec<_> = self
-            .ball_filter
-            .hypotheses
-            .iter()
-            .filter_map(|hypothesis| {
-                if hypothesis.validity >= filter_parameters.validity_output_threshold {
-                    Some(hypothesis.position())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let ball_radius = context.field_dimensions.ball_radius;
-        context.filtered_balls_in_image_top.fill_if_subscribed(|| {
-            context.camera_matrices.map_or(vec![], |camera_matrices| {
-                project_to_image(&output_balls, &camera_matrices.top, ball_radius)
-            })
-        });
-        context
-            .filtered_balls_in_image_bottom
-            .fill_if_subscribed(|| {
-                context.camera_matrices.map_or(vec![], |camera_matrices| {
-                    project_to_image(&output_balls, &camera_matrices.bottom, ball_radius)
-                })
-            });
-
-        Ok(MainOutputs {
-            ball_position: filtered_ball.into(),
-            hypothetical_ball_positions: self
-                .hypothetical_ball_positions(filter_parameters.validity_output_threshold)
-                .into(),
-        })
     }
 
     fn hypothetical_ball_positions(

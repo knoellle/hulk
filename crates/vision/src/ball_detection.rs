@@ -36,6 +36,7 @@ struct BallCluster<'a> {
 pub struct BallDetection {
     #[serde(skip, default = "deserialize_not_implemented")]
     neural_networks: NeuralNetworks,
+    sequence_number: usize,
 }
 
 #[context]
@@ -61,6 +62,7 @@ pub struct CycleContext {
 #[derive(Default)]
 pub struct MainOutputs {
     pub balls: MainOutput<Option<Vec<BallPercept>>>,
+    pub sequence_number: MainOutput<usize>,
 }
 
 impl BallDetection {
@@ -93,7 +95,10 @@ impl BallDetection {
             classifier,
             positioner,
         };
-        Ok(Self { neural_networks })
+        Ok(Self {
+            neural_networks,
+            sequence_number: 1,
+        })
     }
 
     pub fn cycle(&mut self, mut context: CycleContext) -> Result<MainOutputs> {
@@ -142,8 +147,10 @@ impl BallDetection {
             context.parameters.noise_increase_distance_threshold,
         );
 
+        self.sequence_number += 1;
         Ok(MainOutputs {
             balls: Some(balls).into(),
+            sequence_number: self.sequence_number.into(),
         })
     }
 }
@@ -555,7 +562,10 @@ mod tests {
             classifier,
             positioner,
         };
-        let mut node = BallDetection { neural_networks };
+        let mut node = BallDetection {
+            neural_networks,
+            sequence_number: 0,
+        };
         let balls = node.cycle(context)?.balls;
         assert!(balls.value.is_some());
 

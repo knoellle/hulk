@@ -1,6 +1,6 @@
 use clap::Parser;
 use color_eyre::Result;
-use communication::client::Client;
+use communication::client::{protocol::SubscriptionEvent, Client};
 use tokio::spawn;
 
 pub fn setup_logger() -> Result<(), fern::InitError> {
@@ -41,7 +41,14 @@ async fn main() -> Result<()> {
     let mut subscription = handle.subscribe_text(arguments.path).await;
 
     while let Ok(message) = subscription.receiver.recv().await {
-        println!("{message:#?}");
+        match &*message {
+            SubscriptionEvent::Successful { timestamp, value } => {}
+            SubscriptionEvent::Update { timestamp, value } => {
+                println!("{value:#?}");
+            }
+            SubscriptionEvent::Failure { error } => {}
+        }
+        // println!("{message:#?}");
     }
 
     drop(handle);

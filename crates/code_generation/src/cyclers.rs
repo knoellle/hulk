@@ -862,7 +862,7 @@ fn generate_perception_cycler_barrier_times(cyclers: &Cyclers) -> TokenStream {
     quote! {
         let previous_barrier_times = self.barrier_times;
         self.barrier_times = crate::perception_databases::BarrierTimes {
-            #(#instance_name: updates.#instance_name.first_timestamp_of_non_finalized_database,)*
+            #(#instance_name: updates.#instance_name.first_timestamp_of_non_finalized_database.or(self.barrier_times.#instance_name),)*
         };
     }
 }

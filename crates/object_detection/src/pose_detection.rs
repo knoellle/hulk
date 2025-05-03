@@ -1,4 +1,7 @@
-use std::time::{Duration, SystemTime};
+use std::{
+    thread::sleep,
+    time::{Duration, SystemTime},
+};
 
 use color_eyre::{
     eyre::{bail, eyre, Context, ContextCompat},
@@ -120,6 +123,7 @@ impl PoseDetection {
             }
         );
         if !behavior_requests_pose_detection && !context.override_pose_detection {
+            sleep(Duration::from_secs(10));
             return Ok(MainOutputs::default());
         };
 
