@@ -1,5 +1,7 @@
 use color_eyre::Result;
-use geometry::{angle::Angle, arc::Arc, circle::Circle, line_segment::LineSegment};
+use geometry::{
+    angle::Angle, arc::Arc, circle::Circle, direction::Direction, line_segment::LineSegment,
+};
 use levenberg_marquardt::{LeastSquaresProblem, LevenbergMarquardt};
 use linear_algebra::point;
 use nalgebra::{dvector, vector, DVector, Dyn, Matrix, Owned, U1};
@@ -250,21 +252,21 @@ fn foo2() {
             path: Path {
                 segments: vec![
                     PathSegment::LineSegment(LineSegment(
-                        point![0.0, 0.0],
-                        point![0.63413036, -4.4703484e-7,],
+                        point![0.0, 0.0,],
+                        point![3.0732498, -0.65775096,],
                     )),
                     PathSegment::Arc(Arc {
                         circle: Circle {
-                            center: point![0.6341301, -0.35000044,],
-                            radius: 0.35,
+                            center: point![3.0, -1.0000001,],
+                            radius: 0.34999996,
                         },
-                        start: Angle(1.5707957),
-                        end: Angle(1.5694388),
-                        direction: geometry::direction::Direction::Clockwise,
+                        start: Angle(1.3599524),
+                        end: Angle(1.3585994),
+                        direction: Direction::Clockwise,
                     }),
                     PathSegment::LineSegment(LineSegment(
-                        point![0.6346052, -7.4505806e-7,],
-                        point![0.79499525, -0.00021849573,],
+                        point![3.0737128, -0.6578504,],
+                        point![3.2305055, -0.6916299,],
                     )),
                 ],
             },
@@ -289,21 +291,7 @@ fn foo2() {
             },
         },
         variables: dvector![
-            0.007884634,
-            -5.5583076e-9,
-            -6.4623485e-27,
-            0.0063005835,
-            -4.4416417e-9,
-            -1.9984014e-19,
-            0.004721283,
-            -3.3283027e-9,
-            8.881784e-20,
-            0.003145544,
-            -2.2174744e-9,
-            -3.330669e-20,
-            0.0015721788,
-            -1.108319e-9,
-            0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ],
     };
 
