@@ -192,6 +192,80 @@ fn walk_volume_gradient(
     }
 }
 
+use proptest::prelude::*;
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100_000_000))]
+    #[test]
+    fn walk_volume_not_none(
+        forward: f32,
+        left: f32,
+        turn: f32,
+        support_foot in prop_oneof![Just(Side::Left), Just(Side::Right)],
+    ) {
+        let result = walk_volume(
+            &StepAndSupportFoot {
+                step: Step {
+                    forward,
+                    left,
+                    turn,
+                },
+                support_foot,
+            },
+            &WalkVolumeCoefficients::from_extents_and_exponents(
+                &WalkVolumeExtents {
+                    forward: 0.045,
+                    backward: 0.04,
+                    outward: 0.1,
+                    inward: 0.01,
+                    outward_rotation: 1.0,
+                    inward_rotation: 1.0,
+                },
+                2.0,
+                2.0,
+            )
+        );
+        assert!(!result.is_nan());
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100_000_000))]
+    #[test]
+    fn walk_volume_gradient_not_none(
+        forward: f32,
+        left: f32,
+        turn: f32,
+        support_foot in prop_oneof![Just(Side::Left), Just(Side::Right)],
+    ) {
+        let result = walk_volume_gradient(
+            &StepAndSupportFoot {
+                step: Step {
+                    forward,
+                    left,
+                    turn,
+                },
+                support_foot,
+            },
+            &WalkVolumeCoefficients::from_extents_and_exponents(
+                &WalkVolumeExtents {
+                    forward: 0.045,
+                    backward: 0.04,
+                    outward: 0.1,
+                    inward: 0.01,
+                    outward_rotation: 1.0,
+                    inward_rotation: 1.0,
+                },
+                2.0,
+                2.0,
+            )
+        );
+        assert!(!result.forward.is_nan());
+        assert!(!result.left.is_nan());
+        assert!(!result.turn.is_nan());
+    }
+}
+
 fn penalty_function(walk_volume_value: f32) -> f32 {
     walk_volume_value.powi(6)
 }

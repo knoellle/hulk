@@ -16,3 +16,4 @@ types.workspace = true
 geometry.workspace = true
 linear_algebra.workspace = true
 coordinate_systems.workspace = true
+proptest.workspace = true

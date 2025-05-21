@@ -12,5 +12,6 @@ levenberg-marquardt.workspace = true
 linear_algebra.workspace = true
 nalgebra.workspace = true
 num-dual.workspace = true
+proptest.workspace = true
 step_planning.workspace = true
 types.workspace = true

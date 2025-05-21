@@ -41,6 +41,58 @@ struct StepPlanningProblem {
     variables: DVector<f32>,
 }
 
+use proptest::prelude::*;
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100_000_000))]
+    #[test]
+    fn gradient_not_nan(
+        x1 in 0.0..100.0f32,
+        y1 in -100.0..100.0f32,
+        x2 in -100.0..100.0f32,
+        y2 in -100.0..100.0f32,
+        x3 in -100.0..100.0f32,
+        y3 in -100.0..100.0f32,
+        orientation: f32,
+        initial_support_foot in prop_oneof![Just(Side::Left), Just(Side::Right)],
+    ) {
+        let step_planning = StepPlanningProblem {
+            step_planning: StepPlanning {
+                path: Path {
+                    segments: vec![PathSegment::LineSegment(LineSegment(
+                        point![x1, y1],
+                        point![x2, y2],
+                    ))],
+                },
+                initial_pose: Pose{
+                    position: point![x3, y3],
+                    orientation
+                },
+                initial_support_foot,
+                path_progress_reward: 5.0,
+                path_distance_penalty: 50.0,
+                path_progress_smoothness: 1.0,
+                step_size_penalty: 0.5,
+                walk_volume_coefficients: WalkVolumeCoefficients::from_extents_and_exponents(
+                    &WalkVolumeExtents {
+                        forward: 0.045,
+                        backward: 0.04,
+                        outward: 0.1,
+                        inward: 0.01,
+                        outward_rotation: 1.0,
+                        inward_rotation: 1.0,
+                    },
+                    2.0,
+                    2.0,
+                ),
+            },
+            variables: DVector::zeros(15),
+        };
+        let result = step_planning.jacobian().unwrap();
+        assert!(result.iter().all(|x| !x.is_nan()));
+    }
+}
+
 impl LeastSquaresProblem<f32, U1, Dyn> for StepPlanningProblem {
     type ResidualStorage = Owned<f32, U1, U1>;
     type JacobianStorage = Owned<f32, U1, Dyn>;
@@ -155,7 +207,7 @@ pub fn plan_steps(
                     outward_rotation: 1.0,
                     inward_rotation: 1.0,
                 },
-                1.5,
+                2.0,
                 2.0,
             ),
         },
