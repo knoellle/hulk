@@ -1,6 +1,6 @@
 use color_eyre::Result;
 
-use geometry::convex_hull::{reduce_to_convex_hull, Range};
+use geometry::convex_hull::{convex_hull_gift_wrapping, Range};
 
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +138,7 @@ fn project_bounding_polygon<Frame>(
         .collect();
     Limb {
         pixel_polygon: if use_convex_hull {
-            reduce_to_convex_hull(&points, Range::OnlyBottomHalf)
+            convex_hull_gift_wrapping(&points, Range::OnlyBottomHalf)
         } else {
             points
         },

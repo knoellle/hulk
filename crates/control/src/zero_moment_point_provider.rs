@@ -4,7 +4,7 @@ use coordinate_systems::{Ground, Robot};
 use filtering::low_pass_filter::LowPassFilter;
 use framework::{AdditionalOutput, MainOutput};
 use geometry::{
-    convex_hull::{reduce_to_convex_hull, Range},
+    convex_hull::{convex_hull_gift_wrapping, Range},
     is_inside_polygon::is_inside_polygon,
 };
 use linear_algebra::{point, Isometry3, Point2, Point3, Vector3};
@@ -120,7 +120,7 @@ impl ZeroMomentPointProvider {
                 (right_sole_to_ground * point![point.x(), -point.y(), point.z()]).xy()
             }))
             .collect::<Vec<_>>();
-        let soles_in_ground_hull = reduce_to_convex_hull(&soles_in_ground, Range::Full);
+        let soles_in_ground_hull = convex_hull_gift_wrapping(&soles_in_ground, Range::Full);
 
         if is_inside_polygon(&soles_in_ground_hull, &zero_moment_point) {
             self.number_of_consecutive_cycles_zero_moment_point_outside_support_polygon = 0;

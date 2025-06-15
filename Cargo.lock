@@ -3923,6 +3923,7 @@ dependencies = [
  "approx",
  "approx_derive",
  "coordinate_systems",
+ "itertools 0.14.0",
  "linear_algebra",
  "nalgebra",
  "num-traits",
