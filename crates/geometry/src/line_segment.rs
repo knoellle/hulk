@@ -19,8 +19,6 @@ use crate::{
 };
 
 #[derive(
-    Clone,
-    Copy,
     Debug,
     Default,
     Deserialize,
@@ -31,6 +29,16 @@ use crate::{
     PathDeserialize,
 )]
 pub struct LineSegment<Frame>(pub Point2<Frame>, pub Point2<Frame>);
+
+impl<Frame> Copy for LineSegment<Frame> where Point2<Frame>: Copy {}
+impl<Frame> Clone for LineSegment<Frame>
+where
+    Point2<Frame>: Clone,
+{
+    fn clone(&self) -> Self {
+        *self
+    }
+}
 
 impl<Frame> LineSegment<Frame> {
     pub fn new(start: Point2<Frame>, end: Point2<Frame>) -> Self {
