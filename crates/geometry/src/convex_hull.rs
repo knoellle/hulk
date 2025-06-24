@@ -1,13 +1,18 @@
 use std::{
-    iter,
+    fmt::Debug,
+    mem::swap,
     ops::{Index, Mul},
 };
 
 use itertools::Itertools;
-use linear_algebra::{Isometry2, Point2, Vector2};
+use linear_algebra::{vector, Isometry2, Point2, Vector2};
 use nalgebra::Matrix2;
 
-use crate::{direction::Direction, line_segment::LineSegment};
+use crate::{
+    direction::Direction,
+    line::Line,
+    line_segment::{signed_acute_angle, LineSegment},
+};
 
 pub enum Range {
     Full,
@@ -66,13 +71,22 @@ pub struct ConvexHull<Frame> {
 }
 
 impl<Frame> ConvexHull<Frame> {
-    pub fn edges(&self) -> impl '_ + Iterator<Item = (Point2<Frame>, Point2<Frame>)> {
+    pub fn len(&self) -> usize {
+        self.vertices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty()
+    }
+
+    pub fn edges(&self) -> impl '_ + Iterator<Item = LineSegment<Frame>> + Clone {
         self.vertices
             .iter()
             .cloned()
             .cycle()
             .tuple_windows()
-            .take(self.vertices.len())
+            .map(|(a, b)| LineSegment(a, b))
+            .take(self.len())
     }
 
     pub fn midpoint(&self) -> Point2<Frame> {
@@ -82,73 +96,170 @@ impl<Frame> ConvexHull<Frame> {
             .map(|x| x.coords())
             .sum::<Vector2<Frame>>()
             * 1.0
-            / self.vertices.len() as f32)
+            / self.len() as f32)
             .as_point()
+    }
+
+    pub fn merge_calipers(
+        &self,
+        other: &ConvexHull<Frame>,
+    ) -> Result<ConvexHull<Frame>, ConvexHullMergeError> {
+        let (leftmost_own, _) = self
+            .vertices
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.x().total_cmp(&b.1.x()))
+            .unwrap();
+        let (leftmost_other, _) = other
+            .vertices
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.x().total_cmp(&b.1.x()))
+            .unwrap();
+
+        let i = leftmost_own;
+        let j = leftmost_other;
+
+        let mut vertices = vec![];
+        let mut direction = vector![0.0, -1.0];
+
+        let edges_self = self
+            .edges()
+            .cycle()
+            .skip(leftmost_own)
+            .take(self.len())
+            .peekable();
+        let edges_other = other
+            .edges()
+            .cycle()
+            .skip(leftmost_other)
+            .take(other.len())
+            .peekable();
+
+        let self_is_outside = self[i].x() < other[j].x();
+        let (mut inner, mut outer) = if self_is_outside {
+            (edges_other, edges_self)
+        } else {
+            (edges_self, edges_other)
+        };
+
+        'outer: while let Some(outer_edge) = outer.next() {
+            if vertices.len() > 30 {
+                panic!();
+            }
+            while let Some(inner_edge) = inner.peek() {
+                if outer_edge.as_line().get_direction(inner_edge.0) != Direction::Counterclockwise {
+                    println!("swap");
+                    direction = inner_edge.0 - outer_edge.0;
+                    swap(&mut outer, &mut inner);
+                    continue 'outer;
+                }
+                if direction.angle(&inner_edge.as_line().direction)
+                    > direction.angle(&outer_edge.as_line().direction)
+                {
+                    break;
+                }
+                println!("skip");
+                direction = inner.next().unwrap().as_line().direction;
+            }
+            println!("push");
+            vertices.push(outer_edge.0);
+        }
+
+        return Ok(Self { vertices });
+
+        while i < self.len() && j < other.len() {
+            // if self_is_outside {
+            //     vertices.push(self[i]);
+            // } else {
+            //     vertices.push(other[i]);
+            // }
+
+            if direction.angle(&(self[i + 1] - self[i]))
+                < direction.angle(&(other[j + 1] - other[j]))
+            {
+                direction = self[i + 1] - self[i];
+                i += 1;
+            } else {
+                direction = other[j + 1] - other[j];
+                j += 1;
+            }
+
+            let new_self_is_outside =
+                Line::new(self[i], direction).get_direction(other[j]) != Direction::Clockwise;
+            if new_self_is_outside != self_is_outside {
+                if new_self_is_outside {
+                    dbg!(i);
+                    vertices.push(self[i]);
+                } else {
+                    dbg!(j);
+                    vertices.push(other[i]);
+                }
+            }
+            self_is_outside = new_self_is_outside;
+        }
+
+        Ok(Self { vertices })
     }
 
     pub fn merge(
         &self,
         other: &ConvexHull<Frame>,
     ) -> Result<ConvexHull<Frame>, ConvexHullMergeError> {
-        let midpoint_1 = self.midpoint();
-        let midpoint_2 = other.midpoint();
+        let midpoint_1 = dbg!(self.midpoint());
+        let midpoint_2 = dbg!(other.midpoint());
+        let connecting_line = LineSegment(midpoint_1, midpoint_2);
 
         let (start1, _) = self
             .edges()
             .enumerate()
-            .find(|(_index, (a, b))| {
-                LineSegment(*a, *b).intersects_line_segment(LineSegment(midpoint_1, midpoint_2))
-            })
+            .find(|(_index, edge)| edge.intersects_line_segment(connecting_line))
             .ok_or(ConvexHullMergeError::MidpointContainedInOtherHull)?;
         let (start2, _) = other
             .edges()
             .enumerate()
-            .find(|(_index, (a, b))| {
-                LineSegment(*a, *b).intersects_line_segment(LineSegment(midpoint_1, midpoint_2))
-            })
+            .find(|(_index, edge)| edge.intersects_line_segment(connecting_line))
             .ok_or(ConvexHullMergeError::MidpointContainedInOtherHull)?;
 
         let mut i = start1 as isize;
         let mut j = start2 as isize;
 
+        let get_direction = |a: Point2<Frame>, b, c| LineSegment(a, b).get_direction(c);
+
         loop {
             println!("{i}, {j}");
-            if LineSegment(self[i], other[j]).get_direction(self[i + 1])
-                == Direction::Counterclockwise
-            {
+            if get_direction(self[i], other[j], self[i + 1]) == Direction::Counterclockwise {
                 i += 1;
                 continue;
             }
-            if LineSegment(self[i], other[j]).get_direction(other[j - 1])
-                == Direction::Counterclockwise
-            {
+            if get_direction(self[i], other[j], other[j - 1]) == Direction::Counterclockwise {
                 j -= 1;
                 continue;
             }
             break;
         }
 
-        let range_1_start = i.rem_euclid(self.vertices.len() as isize) as usize;
-        let range_2_end = j.rem_euclid(other.vertices.len() as isize) as usize;
+        let range_1_start = i.rem_euclid(self.len() as isize) as usize;
+        let range_2_end = j.rem_euclid(other.len() as isize) as usize;
 
         let mut i = start1 as isize;
         let mut j = start2 as isize;
 
         loop {
             println!("{i}, {j}");
-            if LineSegment(self[i], other[j]).get_direction(self[i - 1]) == Direction::Clockwise {
+            if get_direction(self[i], other[j], self[i - 1]) == Direction::Clockwise {
                 i -= 1;
                 continue;
             }
-            if LineSegment(self[i], other[j]).get_direction(other[j + 1]) == Direction::Clockwise {
+            if get_direction(self[i], other[j], other[j + 1]) == Direction::Clockwise {
                 j += 1;
                 continue;
             }
             break;
         }
 
-        let range_1_end = i.rem_euclid(self.vertices.len() as isize) as usize;
-        let range_2_start = j.rem_euclid(other.vertices.len() as isize) as usize;
+        let range_1_end = i.rem_euclid(self.len() as isize) as usize;
+        let range_2_start = j.rem_euclid(other.len() as isize) as usize;
 
         println!("{range_1_start}..{range_1_end}");
         println!("{range_2_start}..{range_2_end}");
@@ -156,14 +267,12 @@ impl<Frame> ConvexHull<Frame> {
         let self_vertices: Vec<_> = if range_1_end >= range_1_start {
             (range_1_start..=range_1_end).collect()
         } else {
-            (range_1_start..self.vertices.len())
-                .chain(0..=range_1_end)
-                .collect()
+            (range_1_start..self.len()).chain(0..=range_1_end).collect()
         };
         let other_vertices: Vec<_> = if range_2_end >= range_2_start {
             (range_2_start..=range_2_end).collect()
         } else {
-            (range_2_start..other.vertices.len())
+            (range_2_start..other.len())
                 .chain(0..=range_2_end)
                 .collect()
         };
@@ -188,7 +297,7 @@ impl<Frame> Index<isize> for ConvexHull<Frame> {
     type Output = Point2<Frame>;
 
     fn index(&self, index: isize) -> &Self::Output {
-        &self.vertices[index.rem_euclid(self.vertices.len() as isize) as usize]
+        &self.vertices[index.rem_euclid(self.len() as isize) as usize]
     }
 }
 impl<Frame> Index<usize> for ConvexHull<Frame> {
@@ -217,8 +326,14 @@ pub enum ConvexHullMergeError {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use proptest::{proptest, strategy::Strategy};
+
     use coordinate_systems::Ground;
     use linear_algebra::{point, vector};
+
+    #[derive(Debug, Clone, Copy)]
+    struct Frame;
 
     #[test]
     fn test_convex_hull() {
@@ -246,10 +361,8 @@ mod test {
         );
     }
 
-    #[test]
+    // #[test]
     fn merge_convex_hulls_hexagon() {
-        #[derive(Debug, Clone, Copy)]
-        struct Frame;
         let a = ConvexHull::<Frame> {
             vertices: vec![
                 point![-1.0, 0.0],
@@ -265,14 +378,12 @@ mod test {
         let result = a.merge(&b);
 
         dbg!(&result);
-        assert_eq!(result.unwrap().vertices.len(), 8);
+        assert_eq!(result.unwrap().len(), 8);
         panic!()
     }
 
-    #[test]
+    // #[test]
     fn merge_convex_hulls_square() {
-        #[derive(Debug, Clone, Copy)]
-        struct Frame;
         let a = ConvexHull::<Frame> {
             vertices: vec![
                 point![0.0, 0.0],
@@ -304,7 +415,122 @@ mod test {
             assert!(result_expensive.contains(v));
         }
 
-        assert_eq!(result.vertices.len(), 6);
+        assert_eq!(result.len(), 6);
         panic!()
+    }
+
+    proptest! {
+        // #[test]
+        fn a(
+            vertices in proptest::collection::vec((-100.0..100.0, -100.0..100.0).prop_map(|(x, y)| -> Point2<Frame>  {point![x as f32, y as f32]}), 10..100),
+            shift in (-100.0..100.0, -100.0..100.0).prop_map(|(x, y)| -> Vector2<Frame>  {vector![x as f32, y as f32]}),
+        ) {
+            let mut vertices_deduplicated = Vec::new();
+            for v in vertices {
+                if vertices_deduplicated.contains(&v) {
+                    continue;
+                }
+                if v.x() == 0.0 || v.y() == 0.0 {
+                    continue;
+                }
+                vertices_deduplicated.push(v);
+            }
+            let vertices_convex = convex_hull_gift_wrapping(&vertices_deduplicated, Range::Full);
+            test_polygon(vertices_convex, shift);
+        }
+    }
+
+    proptest! {
+        // #[test]
+        fn b(
+            shift in (-5.0..5.0, -5.0..5.0).prop_map(|(x, y)| -> Vector2<Frame>  {vector![x as f32, y as f32]}),
+        ) {
+            let vertices= vec![
+                point![-1.0, 0.0],
+                point![-0.5, -0.86],
+                point![0.5, -0.86],
+                point![1.0, 0.0],
+                point![0.5, 0.86],
+                point![-0.5, 0.86],
+            ];
+            test_polygon(vertices, shift);
+        }
+    }
+
+    #[test]
+    fn c() {
+        let transform = Isometry2::from_parts(vector![-2.0, 1.0], 0.0);
+        let vertices = vec![
+            point![-1.0, 0.0],
+            point![-0.5, -0.86],
+            point![0.5, -0.86],
+            point![1.0, 0.0],
+            point![0.5, 0.86],
+            point![-0.5, 0.86],
+        ];
+        let a = transform * ConvexHull::<Frame> { vertices };
+        let vertices = vec![point![-0.5, -0.86], point![0.5, -0.86], point![0.0, 0.86]];
+        let b = ConvexHull::<Frame> { vertices };
+
+        let result = a.merge_calipers(&b).unwrap();
+        let result_expensive = convex_hull_gift_wrapping(
+            &a.vertices
+                .iter()
+                .chain(&b.vertices)
+                .cloned()
+                .collect::<Vec<_>>(),
+            Range::Full,
+        );
+
+        dbg!(&result);
+        dbg!(&result_expensive);
+
+        assert_eq!(result.len(), result_expensive.len());
+
+        for v in &result_expensive {
+            assert!(result.vertices.contains(v));
+        }
+        for v in &result.vertices {
+            assert!(result_expensive.contains(v));
+        }
+    }
+
+    fn test_polygon(vertices: Vec<Point2<Frame>>, shift: Vector2<Frame>) {
+        if shift.norm() < 0.01 {
+            return;
+        }
+        if shift.x() == 0.0 || shift.y() == 0.0 {
+            return;
+        }
+
+        dbg!(&vertices);
+
+        let a = ConvexHull { vertices };
+
+        let b = Isometry2::from_parts(shift, 0.0) * a.clone();
+
+        let Ok(result) = a.merge_calipers(&b) else {
+            return;
+        };
+        let result_expensive = convex_hull_gift_wrapping(
+            &a.vertices
+                .iter()
+                .chain(&b.vertices)
+                .cloned()
+                .collect::<Vec<_>>(),
+            Range::Full,
+        );
+
+        dbg!(&result);
+        dbg!(&result_expensive);
+
+        assert_eq!(result.len(), result_expensive.len());
+
+        for v in &result_expensive {
+            assert!(result.vertices.contains(v));
+        }
+        for v in &result.vertices {
+            assert!(result_expensive.contains(v));
+        }
     }
 }

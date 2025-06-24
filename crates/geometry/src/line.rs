@@ -54,13 +54,32 @@ impl<Frame> Line2<Frame> {
         other.point + other.direction * direction_factor
     }
 
+    pub fn angle(&self, other: Self) -> f32 {
+        self.direction.angle(&other.direction)
+    }
+
     pub fn project_onto_along_y_axis(&self, point: Point2<Frame>) -> f32 {
         let rise = (point.x() - self.point.x()) * self.slope();
         rise + self.point.y()
     }
+
+    pub fn get_direction(&self, point: Point2<Frame>) -> Direction {
+        let clockwise_normal_vector = self.direction.rotate_90_degrees(Direction::Clockwise);
+        let directed_cathetus = clockwise_normal_vector.dot(&(point - self.point));
+
+        match directed_cathetus {
+            0.0 => Direction::Collinear,
+            f if f > 0.0 => Direction::Clockwise,
+            f if f < 0.0 => Direction::Counterclockwise,
+            f => panic!("directed cathetus was not a real number: {f}"),
+        }
+    }
 }
 
 impl<Frame, const DIMENSION: usize> Line<Frame, DIMENSION> {
+    pub fn new(point: Point<Frame, DIMENSION>, direction: Vector<Frame, DIMENSION>) -> Self {
+        Self { point, direction }
+    }
     pub fn from_points(point1: Point<Frame, DIMENSION>, point2: Point<Frame, DIMENSION>) -> Self {
         Self {
             point: point1,

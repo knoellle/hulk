@@ -17,3 +17,4 @@ serde = { workspace = true }
 
 [dev-dependencies]
 coordinate_systems = { workspace = true }
+proptest = { workspace = true }

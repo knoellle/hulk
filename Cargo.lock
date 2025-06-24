@@ -3928,6 +3928,7 @@ dependencies = [
  "nalgebra",
  "num-traits",
  "path_serde",
+ "proptest",
  "serde",
 ]
 

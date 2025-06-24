@@ -15,6 +15,7 @@ use path_serde::{PathDeserialize, PathIntrospect, PathSerialize};
 use crate::{
     arc::Arc,
     direction::{AngleTo, Direction, Rotate90Degrees},
+    line::Line,
     Distance,
 };
 
@@ -189,6 +190,10 @@ impl<Frame> LineSegment<Frame> {
     pub fn translate(&self, translation: Vector2<Frame>) -> Self {
         Self::new(self.0 + translation, self.1 + translation)
     }
+
+    pub fn as_line(&self) -> Line<Frame, 2> {
+        Line::from_points(self.0, self.1)
+    }
 }
 
 impl<From, To, Inner> Mul<LineSegment<From>> for Transform<From, To, Inner>
@@ -243,7 +248,7 @@ where
     }
 }
 
-fn signed_acute_angle<Frame>(first: Vector2<Frame>, second: Vector2<Frame>) -> f32 {
+pub fn signed_acute_angle<Frame>(first: Vector2<Frame>, second: Vector2<Frame>) -> f32 {
     let difference = Rotation2::rotation_between(first, second).angle();
     if difference > FRAC_PI_2 {
         difference - PI
