@@ -19,10 +19,8 @@ pub struct Framed<Frame, Inner> {
 
 impl<Frame, Inner: Debug> Debug for Framed<Frame, Inner> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Framed")
-            .field("frame", &type_name::<Frame>())
-            .field("inner", &self.inner)
-            .finish()
+        f.write_str(&format!("Framed<{}> ", type_name::<Frame>()))?;
+        self.inner.fmt(f)
     }
 }
 
