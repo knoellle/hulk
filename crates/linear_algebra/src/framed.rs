@@ -3,17 +3,27 @@ use num_traits::Num;
 use path_serde::{deserialize, serialize, PathDeserialize, PathIntrospect, PathSerialize};
 use serde::{Deserialize, Serialize};
 use std::{
+    any::type_name,
     collections::HashSet,
+    fmt::Debug,
     hash::{Hash, Hasher},
     iter::Sum,
     marker::PhantomData,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-#[derive(Debug)]
 pub struct Framed<Frame, Inner> {
     frame: PhantomData<Frame>,
     pub inner: Inner,
+}
+
+impl<Frame, Inner: Debug> Debug for Framed<Frame, Inner> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Framed")
+            .field("frame", &type_name::<Frame>())
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 impl<Frame, Inner> Copy for Framed<Frame, Inner> where Inner: Copy {}
