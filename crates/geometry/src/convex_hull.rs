@@ -5,7 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use linear_algebra::{vector, Isometry2, Point2, Vector2};
+use linear_algebra::{vector, Isometry2, Orientation2, Point2, Rotation2, Vector2};
 use nalgebra::Matrix2;
 
 use crate::{
@@ -128,12 +128,14 @@ impl<Frame> ConvexHull<Frame> {
             .cycle()
             .skip(leftmost_own)
             .take(self.len())
+            .enumerate()
             .peekable();
         let edges_other = other
             .edges()
             .cycle()
             .skip(leftmost_other)
             .take(other.len())
+            .enumerate()
             .peekable();
 
         let self_is_outside = self[i].x() < other[j].x();
@@ -143,63 +145,129 @@ impl<Frame> ConvexHull<Frame> {
             (edges_self, edges_other)
         };
 
-        'outer: while let Some(outer_edge) = outer.next() {
-            if vertices.len() > 30 {
-                panic!();
+        for _ in 0..15 {
+            // if vertices.len() > 30 {
+            //     panic!();
+            // }
+            let Some((o, outer_edge)) = outer.peek().cloned() else {
+                break;
+            };
+            let Some((i, inner_edge)) = inner.peek().cloned() else {
+                break;
+            };
+            println!("{o}, {i}");
+
+            let next_outer_angle = direction.angle(&outer_edge.as_line().direction);
+            let next_inner_angle = direction.angle(&inner_edge.as_line().direction);
+            let next_crossing_angle = direction.angle(&(inner_edge.0 - outer_edge.0));
+
+            if next_crossing_angle < next_outer_angle.min(next_inner_angle) {
+                vertices.push(inner_edge.0);
+                swap(&mut outer, &mut inner);
+                println!("swap");
+                continue;
             }
-            while let Some(inner_edge) = inner.peek() {
-                if outer_edge.as_line().get_direction(inner_edge.0) != Direction::Counterclockwise {
-                    println!("swap");
-                    direction = inner_edge.0 - outer_edge.0;
-                    swap(&mut outer, &mut inner);
-                    continue 'outer;
-                }
-                if direction.angle(&inner_edge.as_line().direction)
-                    > direction.angle(&outer_edge.as_line().direction)
-                {
-                    break;
-                }
-                println!("skip");
-                direction = inner.next().unwrap().as_line().direction;
+            if next_inner_angle < next_outer_angle {
+                inner.next();
+                direction = inner_edge.as_line().direction;
+                continue;
             }
-            println!("push");
-            vertices.push(outer_edge.0);
+
+            // if direction.angle(&inner_edge.as_line().direction)
+            //     <= direction.angle(&outer_edge.as_line().direction)
+            // {
+            //     inner.next();
+            //     direction = inner_edge.as_line().direction;
+            //     continue;
+            // };
+            // if outer_edge.get_direction(inner_edge.0) != Direction::Counterclockwise {
+            //     vertices.push(inner_edge.0);
+            //     swap(&mut outer, &mut inner);
+            //     println!("swap");
+            //     continue;
+            // }
+
+            outer.next();
+            vertices.push(outer_edge.1);
+            direction = outer_edge.as_line().direction;
+            println!(
+                "{}",
+                Orientation2::from_vector(direction).angle().to_degrees()
+            );
+        }
+
+        for remaining_outer_edge in outer {
+            vertices.push(remaining_outer_edge.1 .1);
         }
 
         return Ok(Self { vertices });
 
-        while i < self.len() && j < other.len() {
-            // if self_is_outside {
-            //     vertices.push(self[i]);
-            // } else {
-            //     vertices.push(other[i]);
-            // }
-
-            if direction.angle(&(self[i + 1] - self[i]))
-                < direction.angle(&(other[j + 1] - other[j]))
-            {
-                direction = self[i + 1] - self[i];
-                i += 1;
-            } else {
-                direction = other[j + 1] - other[j];
-                j += 1;
-            }
-
-            let new_self_is_outside =
-                Line::new(self[i], direction).get_direction(other[j]) != Direction::Clockwise;
-            if new_self_is_outside != self_is_outside {
-                if new_self_is_outside {
-                    dbg!(i);
-                    vertices.push(self[i]);
-                } else {
-                    dbg!(j);
-                    vertices.push(other[i]);
-                }
-            }
-            self_is_outside = new_self_is_outside;
-        }
-
-        Ok(Self { vertices })
+        // 'outer: while let Some(outer_edge) = outer.next() {
+        //     if vertices.len() > 30 {
+        //         panic!();
+        //     }
+        //
+        //     while let Some(inner_edge) = inner.peek() {
+        //         if direction.angle(&inner_edge.as_line().direction)
+        //             > direction.angle(&outer_edge.as_line().direction)
+        //         {
+        //             break;
+        //         }
+        //
+        //         println!("skip {}", inner_edge.0.inner);
+        //         direction = inner.next().unwrap().as_line().direction;
+        //     }
+        //     if let Some(inner_edge) = inner.peek() {
+        //         if outer_edge.as_line().get_direction(inner_edge.0) != Direction::Counterclockwise {
+        //             direction = inner_edge.0 - outer_edge.0;
+        //             println!("{}", direction.as_point().inner);
+        //             swap(&mut outer, &mut inner);
+        //             println!("swap");
+        //             continue 'outer;
+        //         }
+        //     }
+        //
+        //     direction = outer_edge.as_line().direction;
+        //     println!("{}", direction.as_point().inner);
+        //     vertices.push(outer_edge.0);
+        //
+        //     println!("push {}", outer_edge.0.inner);
+        // }
+        //
+        // return Ok(Self { vertices });
+        //
+        // while i < self.len() && j < other.len() {
+        //     // if self_is_outside {
+        //     //     vertices.push(self[i]);
+        //     // } else {
+        //     //     vertices.push(other[i]);
+        //     // }
+        //
+        //     if direction.angle(&(self[i + 1] - self[i]))
+        //         < direction.angle(&(other[j + 1] - other[j]))
+        //     {
+        //         direction = self[i + 1] - self[i];
+        //         i += 1;
+        //     } else {
+        //         direction = other[j + 1] - other[j];
+        //         j += 1;
+        //     }
+        //
+        //     let new_self_is_outside =
+        //         Line::new(self[i], direction).get_direction(other[j]) != Direction::Clockwise;
+        //     if new_self_is_outside != self_is_outside {
+        //         if new_self_is_outside {
+        //             dbg!(i);
+        //             vertices.push(self[i]);
+        //         } else {
+        //             dbg!(j);
+        //             vertices.push(other[i]);
+        //         }
+        //     }
+        //     self_is_outside = new_self_is_outside;
+        // }
+        //
+        // Ok(Self { vertices })
     }
 
     pub fn merge(
@@ -421,7 +489,7 @@ mod test {
 
     proptest! {
         // #[test]
-        fn a(
+        fn random_polygons(
             vertices in proptest::collection::vec((-100.0..100.0, -100.0..100.0).prop_map(|(x, y)| -> Point2<Frame>  {point![x as f32, y as f32]}), 10..100),
             shift in (-100.0..100.0, -100.0..100.0).prop_map(|(x, y)| -> Vector2<Frame>  {vector![x as f32, y as f32]}),
         ) {
@@ -441,8 +509,8 @@ mod test {
     }
 
     proptest! {
-        // #[test]
-        fn b(
+        #[test]
+        fn hexagons(
             shift in (-5.0..5.0, -5.0..5.0).prop_map(|(x, y)| -> Vector2<Frame>  {vector![x as f32, y as f32]}),
         ) {
             let vertices= vec![
@@ -458,7 +526,7 @@ mod test {
     }
 
     #[test]
-    fn c() {
+    fn hexagon_and_triangle() {
         let transform = Isometry2::from_parts(vector![-2.0, 1.0], 0.0);
         let vertices = vec![
             point![-1.0, 0.0],
@@ -482,7 +550,7 @@ mod test {
             Range::Full,
         );
 
-        dbg!(&result);
+        dbg!(&result.vertices);
         dbg!(&result_expensive);
 
         assert_eq!(result.len(), result_expensive.len());
@@ -521,7 +589,7 @@ mod test {
             Range::Full,
         );
 
-        dbg!(&result);
+        dbg!(&result.vertices);
         dbg!(&result_expensive);
 
         assert_eq!(result.len(), result_expensive.len());

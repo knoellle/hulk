@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 71580f1ef94a4c8792d8d88842126cbe9671cd615a755ae83f927441f063e3c4 # shrinks to shift = Framed<geometry::convex_hull::test::Frame> [[2.2346601, 4.1279354]]
