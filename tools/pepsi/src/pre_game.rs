@@ -66,10 +66,6 @@ pub struct PreGameArguments {
 }
 
 pub async fn pre_game(arguments: Arguments, repository: &Repository) -> Result<()> {
-    if !arguments.pre_game.skip_parameter_check {
-        run_parameter_tester(arguments.environment.clone(), repository).await?;
-    }
-
     let mut config = DeployConfig::read_from_file(repository)
         .await
         .wrap_err("failed to read deploy config from file")?;
@@ -91,6 +87,15 @@ pub async fn pre_game(arguments: Arguments, repository: &Repository) -> Result<(
         &playing_naos
     };
     let wifi = config.wifi;
+
+    if !arguments.pre_game.skip_parameter_check {
+        let team = repository
+            .read_team_configuration()
+            .await
+            .wrap_err("failed to read team configuration")?;
+        for nao in naos {}
+        run_parameter_tester(arguments.environment.clone(), repository).await?;
+    }
 
     config
         .configure_repository(repository)
