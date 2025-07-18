@@ -232,14 +232,10 @@ fn file_path_from_scope(
 }
 
 fn location_directory_from_head_id(head_id: &str) -> &'static str {
-    let webots_id_found = head_id.starts_with("webots");
-    let behavior_simulator_id_found = head_id.starts_with("behavior_simulator");
-    if webots_id_found {
-        "webots_location"
-    } else if behavior_simulator_id_found {
-        "behavior_simulator_location"
-    } else {
-        "nao_location"
+    match () {
+        _ if head_id.starts_with("webots") => "webots_location",
+        _ if head_id.starts_with("behavior_simulator") => "behavior_simulator_location",
+        _ => "nao_location",
     }
 }
 

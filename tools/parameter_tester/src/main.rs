@@ -15,6 +15,11 @@ use hula_types::hardware::Ids;
 use parameters::directory::deserialize;
 use repository::Repository;
 
+struct Arguments {
+    body_id: Option<String>,
+    head_id: Option<String>,
+}
+
 fn main() -> Result<()> {
     let repository_search_path = match args().nth(1) {
         Some(path) => PathBuf::from(path),

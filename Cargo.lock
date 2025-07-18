@@ -6601,6 +6601,7 @@ version = "0.1.0"
 dependencies = [
  "ball_filter",
  "calibration",
+ "clap 4.5.40",
  "code_generation",
  "color-eyre",
  "coordinate_systems",
