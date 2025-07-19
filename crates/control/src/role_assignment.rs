@@ -580,6 +580,7 @@ fn update_role_state_machine(
             }
         },
 
+        (Role::Striker, _, Event::Striker(striker_event)) => Role::Striker,
         (_other_role, _, Event::Striker(striker_event)) => claim_striker_or_other_role(
             striker_event,
             time_to_reach_kick_position,
