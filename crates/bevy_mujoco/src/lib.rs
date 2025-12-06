@@ -63,7 +63,7 @@ fn spawn_workers_thread(egui_ctx: Option<egui::Context>) -> mpsc::Receiver<Serve
                 loop {
                     // Increase size limit for all the texture data to fit into the websocket message
                     let config = WebSocketConfig::default().max_frame_size(Some(2_usize.pow(30)));
-                    let Ok((stream, _response)) = connect_async_with_config("ws://localhost:8000/", Some(config), false)
+                    let Ok((stream, _response)) = connect_async_with_config("ws://192.168.178.25:8000/", Some(config), false)
                         .await else {
                             info!("Websocket connection failed, retrying...");
                             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -339,6 +339,7 @@ fn spawn_geom(
         GeomVariant::Plane {
             normal: [nx, ny, nz],
         } => {
+            return;
             // The plane is supposed to be infinite but that seems mighty expensive.
             // Use a finite size instead
             const SCALE: f32 = 100.0;
