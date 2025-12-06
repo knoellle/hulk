@@ -22,7 +22,9 @@ impl<'a> Panel<'a> for MujocoSimulatorPanel {
         let mut widget = BevyWidget::new(context.wgpu_state.clone());
         widget
             .bevy_app
-            .add_plugins(MujocoVisualizerPlugin::new(context.egui_context.clone()))
+            .add_plugins(MujocoVisualizerPlugin::new(Some(
+                context.egui_context.clone(),
+            )))
             .init_resource::<KinematicsResource>()
             .init_gizmo_group::<DefaultGizmoConfigGroup>()
             .add_systems(Update, draw_gizmos);

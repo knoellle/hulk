@@ -24,11 +24,11 @@ use tokio_tungstenite::{
 };
 
 pub struct MujocoVisualizerPlugin {
-    egui_ctx: egui::Context,
+    egui_ctx: Option<egui::Context>,
 }
 
 impl MujocoVisualizerPlugin {
-    pub fn new(egui_ctx: egui::Context) -> Self {
+    pub fn new(egui_ctx: Option<egui::Context>) -> Self {
         Self { egui_ctx }
     }
 }
@@ -51,7 +51,7 @@ struct MujocoVisualizerData {
     receiver: mpsc::Receiver<ServerMessageKind>,
 }
 
-fn spawn_workers_thread(egui_ctx: egui::Context) -> mpsc::Receiver<ServerMessageKind> {
+fn spawn_workers_thread(egui_ctx: Option<egui::Context>) -> mpsc::Receiver<ServerMessageKind> {
     let (update_sender, update_receiver) = mpsc::channel(10);
     thread::spawn(|| {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -86,7 +86,9 @@ fn spawn_workers_thread(egui_ctx: egui::Context) -> mpsc::Receiver<ServerMessage
                                     _ => continue
                                 };
                                 update_sender.send(message.payload).await.expect("failed to send update to UI");
-                                egui_ctx.request_repaint();
+                                if let Some(context) = &egui_ctx {
+                                    context.request_repaint();
+                                }
                             }
                         }
                     }
