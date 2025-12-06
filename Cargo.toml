@@ -52,6 +52,7 @@ members = [
   "crates/walking_inference",
   "crates/zed",
   "tools/annotato",
+  "tools/bevy_xr",
   "tools/depp",
   "tools/fanta",
   "tools/mujoco-simulator/mujoco-rust-server",
