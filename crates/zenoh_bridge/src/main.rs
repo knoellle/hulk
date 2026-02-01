@@ -4,20 +4,19 @@ mod ros;
 
 use std::fmt::Debug;
 
-use booster::{ButtonEventMsg, FallDownState, LowCommand, LowState};
+use booster::LowCommand;
 use color_eyre::eyre::{Result, WrapErr};
 use futures_util::{future::Fuse, select, FutureExt};
-use ros2::sensor_msgs::{camera_info::CameraInfo, image::Image};
 use ros2_client::{
-    Context, MessageTypeName, Node, NodeName, NodeOptions, Publisher, Subscription,
-    DEFAULT_PUBLISHER_QOS, DEFAULT_SUBSCRIPTION_QOS,
+    Context, MessageTypeName, Node, NodeName, NodeOptions, Publisher, DEFAULT_PUBLISHER_QOS,
+    DEFAULT_SUBSCRIPTION_QOS,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::task::JoinHandle;
 use zenoh::Session;
 
 use crate::{
-    bridge::{forward_ros_to_zenoh, forward_zenoh_to_ros},
+    bridge::{forward_ros_to_zenoh, forward_zenoh_to_ros, IdentityAdapter},
     error::Error,
 };
 
@@ -38,7 +37,8 @@ async fn main() -> Result<()> {
         .map_err(Error::Zenoh)
         .wrap_err("failed to create Zenoh session")?;
 
-    let mut button_event_forwarder = spawn_ros_to_zenoh_forwarder::<ButtonEventMsg>(
+    let mut button_event_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -46,7 +46,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("booster_interface", "ButtonEventMsg"),
         "button_event",
     )?;
-    let mut fall_down_state_forwarder = spawn_ros_to_zenoh_forwarder::<FallDownState>(
+    let mut fall_down_state_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -54,7 +55,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("booster_interface", "FallDownState"),
         "fall_down_state",
     )?;
-    let mut low_state_forwarder = spawn_ros_to_zenoh_forwarder::<LowState>(
+    let mut low_state_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -62,7 +64,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("booster_interface", "LowState"),
         "low_state",
     )?;
-    let mut origin_left_image_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut origin_left_image_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -70,7 +73,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "origin_left_image",
     )?;
-    let mut origin_right_image_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut origin_right_image_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -78,7 +82,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "origin_right_image",
     )?;
-    let mut rectified_image_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut rectified_image_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -86,7 +91,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "rectified_image",
     )?;
-    let mut rectified_right_image_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut rectified_right_image_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -94,7 +100,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "rectified_right_image",
     )?;
-    let mut stereonet_depth_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut stereonet_depth_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -102,7 +109,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "stereonet_depth",
     )?;
-    let mut stereonet_depth_camera_info_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut stereonet_depth_camera_info_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode/stereonet_depth",
@@ -110,7 +118,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "CameraInfo"),
         "stereonet_depth/camera_info",
     )?;
-    let mut stereonet_visual_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut stereonet_visual_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/StereoNetNode",
@@ -118,7 +127,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "stereonet_visual",
     )?;
-    let mut image_combine_raw_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut image_combine_raw_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -126,7 +136,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "image_combine_raw",
     )?;
-    let mut image_left_raw_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut image_left_raw_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -134,7 +145,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "image_left_raw",
     )?;
-    let mut image_left_raw_camera_info_forwarder = spawn_ros_to_zenoh_forwarder::<CameraInfo>(
+    let mut image_left_raw_camera_info_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/image_left_raw",
@@ -142,7 +154,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "CameraInfo"),
         "image_left_raw/camera_info",
     )?;
-    let mut image_right_raw_forwarder = spawn_ros_to_zenoh_forwarder::<Image>(
+    let mut image_right_raw_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/",
@@ -150,7 +163,8 @@ async fn main() -> Result<()> {
         MessageTypeName::new("sensor_msgs", "Image"),
         "image_right_raw",
     )?;
-    let mut image_right_raw_camera_info_forwarder = spawn_ros_to_zenoh_forwarder::<CameraInfo>(
+    let mut image_right_raw_camera_info_forwarder = spawn_ros_to_zenoh_forwarder(
+        &ros_context,
         &mut ros_node,
         zenoh_session.clone(),
         "/image_right_raw",
@@ -194,7 +208,8 @@ async fn main() -> Result<()> {
     unreachable!("forwarder futures can not complete without errors")
 }
 
-fn spawn_ros_to_zenoh_forwarder<T: 'static + Serialize + DeserializeOwned + Send + Sync>(
+fn spawn_ros_to_zenoh_forwarder(
+    context: &Context,
     ros_node: &mut Node,
     zenoh_session: Session,
     ros_namespace: &'static str,
@@ -209,12 +224,14 @@ fn spawn_ros_to_zenoh_forwarder<T: 'static + Serialize + DeserializeOwned + Send
         ros_type_name,
         &DEFAULT_SUBSCRIPTION_QOS,
     )?;
-    let ros_subscription: Subscription<T> = ros_node
-        .create_subscription(&ros_topic, None)
-        .wrap_err("failed to create subscription")?;
+    let subscriber = context
+        .domain_participant()
+        .create_subscriber(&DEFAULT_SUBSCRIPTION_QOS)?;
+    let reader =
+        subscriber.create_datareader_no_key::<Vec<u8>, IdentityAdapter>(&ros_topic, None)?;
 
     Ok(tokio::spawn(forward_ros_to_zenoh(
-        ros_subscription,
+        reader,
         zenoh_session,
         zenoh_topic_name,
     ))
