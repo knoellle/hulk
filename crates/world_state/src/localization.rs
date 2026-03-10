@@ -3,6 +3,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use approx::assert_relative_eq;
 use booster::{FallDownState, FallDownStateType, ImuState, Odometer};
 use color_eyre::{
     Result,
@@ -910,6 +911,47 @@ fn odometry_delta(last_odometer: &Odometer, odometer: &Odometer) -> nalgebra::Is
         Translation2::new(odometer.x - last_odometer.x, odometer.y - last_odometer.y),
         Rotation2::new(odometer.theta - last_odometer.theta).into(),
     )
+}
+
+fn odometry_delta2(last_odometer: &Odometer, odometer: &Odometer) -> nalgebra::Isometry2<f32> {
+    isometry_from_odometer(odometer) / isometry_from_odometer(last_odometer)
+}
+
+fn isometry_from_odometer(odometer: &Odometer) -> nalgebra::Isometry2<f32> {
+    nalgebra::Isometry2::from_parts(
+        Translation2::new(odometer.x, odometer.y),
+        Rotation2::new(odometer.theta).into(),
+    )
+}
+
+#[test]
+fn odometer_test() {
+    for x in -50..50 {
+        for y in -50..50 {
+            for a in -10..10 {
+                let x = x as f32 / 10.0;
+                let y = y as f32 / 10.0;
+                let a = a as f32 / 3.0;
+                let o1 = Odometer { x, y, theta: a };
+                for x in -50..50 {
+                    for y in -50..50 {
+                        for a in -10..10 {
+                            let x = x as f32 / 10.0;
+                            let y = y as f32 / 10.0;
+                            let a = a as f32 / 3.0;
+                            let o2 = Odometer { x, y, theta: a };
+                            dbg!(&o1);
+                            dbg!(&o2);
+                            assert_relative_eq!(
+                                odometry_delta(&o1, &o2),
+                                odometry_delta2(&o1, &o2)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
