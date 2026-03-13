@@ -76,6 +76,8 @@ pub struct CycleContext {
     imu_state: PerceptionInput<ImuState, "Motion", "imu_state">,
     line_data: PerceptionInput<Option<LineData>, "Vision", "line_data?">,
 
+    last_odometry_reset: CyclerState<Option<SystemTime>, "last_odometry_reset">,
+
     circle_measurement_noise: Parameter<Vector2<f32>, "localization.circle_measurement_noise">,
     field_dimensions: Parameter<FieldDimensions, "field_dimensions">,
     good_matching_threshold: Parameter<f32, "localization.good_matching_threshold">,
@@ -222,11 +224,21 @@ impl Localization {
         );
 
         let current_odometer = Self::latest_odometer(context);
-        let current_odometry_to_last_odometry = match (self.last_odometer, current_odometer) {
+        let mut current_odometry_to_last_odometry = match (self.last_odometer, current_odometer) {
             (Some(last), Some(latest)) => odometry_delta(last, latest),
             _ => Default::default(),
         };
         self.last_odometer = current_odometer;
+
+        if context.last_odometry_reset.is_some_and(|last_reset| {
+            cycle_start_time
+                .duration_since(last_reset)
+                .unwrap()
+                .as_secs_f32()
+                < 1.0
+        }) {
+            current_odometry_to_last_odometry = Default::default()
+        }
 
         let line_data = context
             .line_data

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::SystemTime};
 
 use color_eyre::Result;
 use context_attribute::context;
@@ -8,6 +8,7 @@ use hsl_network_messages::PlayerNumber;
 use serde::{Deserialize, Serialize};
 use types::{
     buttons::{ButtonPressType, Buttons},
+    cycle_time::CycleTime,
     filtered_game_controller_state::FilteredGameControllerState,
     filtered_game_state::FilteredGameState,
     primary_state::PrimaryState,
@@ -23,6 +24,7 @@ pub struct CreationContext {}
 
 #[context]
 pub struct CycleContext {
+    cycle_time: Input<CycleTime, "cycle_time">,
     buttons: Input<Buttons<Option<ButtonPressType>>, "buttons">,
     filtered_game_controller_state:
         Input<Option<FilteredGameControllerState>, "filtered_game_controller_state?">,
@@ -31,6 +33,8 @@ pub struct CycleContext {
     injected_primary_state: Parameter<Option<PrimaryState>, "injected_primary_state?">,
     player_number: Parameter<PlayerNumber, "player_number">,
     recorded_primary_states: Parameter<HashSet<PrimaryState>, "recorded_primary_states">,
+
+    last_odometry_reset: CyclerState<Option<SystemTime>, "last_odometry_reset">,
 
     hardware_interface: HardwareInterface,
 }
@@ -138,6 +142,7 @@ impl PrimaryStateFilter {
             PrimaryState::Safe | PrimaryState::Penalized
         ) {
             context.hardware_interface.reset_odometer()?;
+            *context.last_odometry_reset = Some(context.cycle_time.start_time);
         }
 
         context.hardware_interface.set_whether_to_record(
