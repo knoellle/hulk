@@ -135,6 +135,24 @@ struct TupleStatus(f32, u32);
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ros_z::Message)]
 struct GenericTuple<T>(T);
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ros_z::Message)]
+#[serde(bound(
+    serialize = "[u8; N]: Serialize",
+    deserialize = "[u8; N]: Deserialize<'de>"
+))]
+struct Fixed<const N: usize> {
+    values: [u8; N],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ros_z::Message)]
+#[serde(bound(
+    serialize = "[T; N]: Serialize",
+    deserialize = "[T; N]: Deserialize<'de>"
+))]
+struct GenericFixed<T, const N: usize> {
+    values: [T; N],
+}
+
 #[test]
 fn derive_supports_tuple_struct_schema_with_numeric_field_names() {
     assert_eq!(TupleStatus::type_name(), "message_derive::TupleStatus");
@@ -171,6 +189,59 @@ fn derive_supports_generic_tuple_struct_schema() {
         position_fields[0].shape,
         TypeDef::Named(TypeName::new(Position2D::type_name()).unwrap())
     );
+}
+
+#[test]
+fn derive_supports_const_generic_struct_schema() {
+    assert_eq!(Fixed::<4>::type_name(), "message_derive::Fixed<4>");
+    assert_eq!(Fixed::<8>::type_name(), "message_derive::Fixed<8>");
+
+    let four_schema = Fixed::<4>::schema();
+    let eight_schema = Fixed::<8>::schema();
+
+    let four_fields = &named_struct(&four_schema, &Fixed::<4>::type_name()).fields;
+    let eight_fields = &named_struct(&eight_schema, &Fixed::<8>::type_name()).fields;
+    assert_ne!(Fixed::<4>::schema_hash(), Fixed::<8>::schema_hash());
+
+    assert!(matches!(
+        &four_fields[0].shape,
+        TypeDef::Sequence { element, length: SequenceLengthDef::Fixed(4) }
+            if element.as_ref() == &TypeDef::Primitive(PrimitiveTypeDef::U8)
+    ));
+    assert!(matches!(
+        &eight_fields[0].shape,
+        TypeDef::Sequence { element, length: SequenceLengthDef::Fixed(8) }
+            if element.as_ref() == &TypeDef::Primitive(PrimitiveTypeDef::U8)
+    ));
+}
+
+#[test]
+fn derive_supports_mixed_type_and_const_generic_struct_schema() {
+    assert_eq!(
+        GenericFixed::<u32, 4>::type_name(),
+        "message_derive::GenericFixed<u32,4>"
+    );
+    assert_eq!(
+        GenericFixed::<Position2D, 2>::type_name(),
+        "message_derive::GenericFixed<message_derive::Position2D,2>"
+    );
+
+    let u32_schema = GenericFixed::<u32, 4>::schema();
+    let u32_fields = &named_struct(&u32_schema, &GenericFixed::<u32, 4>::type_name()).fields;
+    assert!(matches!(
+        &u32_fields[0].shape,
+        TypeDef::Sequence { element, length: SequenceLengthDef::Fixed(4) }
+            if element.as_ref() == &TypeDef::Primitive(PrimitiveTypeDef::U32)
+    ));
+
+    let position_schema = GenericFixed::<Position2D, 2>::schema();
+    let position_fields =
+        &named_struct(&position_schema, &GenericFixed::<Position2D, 2>::type_name()).fields;
+    assert!(matches!(
+        &position_fields[0].shape,
+        TypeDef::Sequence { element, length: SequenceLengthDef::Fixed(2) }
+            if element.as_ref() == &TypeDef::Named(TypeName::new(Position2D::type_name()).unwrap())
+    ));
 }
 
 #[test]
