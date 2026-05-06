@@ -129,6 +129,50 @@ fn derive_generates_type_info_and_schema() {
     );
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ros_z::Message)]
+struct TupleStatus(f32, u32);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ros_z::Message)]
+struct GenericTuple<T>(T);
+
+#[test]
+fn derive_supports_tuple_struct_schema_with_numeric_field_names() {
+    assert_eq!(TupleStatus::type_name(), "message_derive::TupleStatus");
+
+    let schema = TupleStatus::schema();
+    let fields = &named_struct(&schema, &TupleStatus::type_name()).fields;
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[0].name, "0");
+    assert_eq!(fields[1].name, "1");
+    assert_eq!(fields[0].shape, TypeDef::Primitive(PrimitiveTypeDef::F32));
+    assert_eq!(fields[1].shape, TypeDef::Primitive(PrimitiveTypeDef::U32));
+}
+
+#[test]
+fn derive_supports_generic_tuple_struct_schema() {
+    assert_eq!(GenericTuple::<u32>::type_name(), "message_derive::GenericTuple<u32>");
+    assert_eq!(
+        GenericTuple::<Position2D>::type_name(),
+        "message_derive::GenericTuple<message_derive::Position2D>"
+    );
+
+    let u32_schema = GenericTuple::<u32>::schema();
+    let u32_fields = &named_struct(&u32_schema, &GenericTuple::<u32>::type_name()).fields;
+    assert_eq!(u32_fields.len(), 1);
+    assert_eq!(u32_fields[0].name, "0");
+    assert_eq!(u32_fields[0].shape, TypeDef::Primitive(PrimitiveTypeDef::U32));
+
+    let position_schema = GenericTuple::<Position2D>::schema();
+    let position_fields =
+        &named_struct(&position_schema, &GenericTuple::<Position2D>::type_name()).fields;
+    assert_eq!(position_fields.len(), 1);
+    assert_eq!(position_fields[0].name, "0");
+    assert_eq!(
+        position_fields[0].shape,
+        TypeDef::Named(TypeName::new(Position2D::type_name()).unwrap())
+    );
+}
+
 #[test]
 fn derive_generates_enum_schema() {
     let schema = DriveMode::schema();
