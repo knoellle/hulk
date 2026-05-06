@@ -1,0 +1,22 @@
+[package]
+name = "hydra-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+
+[package.metadata.pepsi]
+cross-compile = true
+
+[dependencies]
+clap = { workspace = true }
+color-eyre = { workspace = true }
+ndarray = { workspace = true }
+ort = { workspace = true, features = ["cuda", "tensorrt", "load-dynamic"] }
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "mybenchmark"
+harness = false
