@@ -77,7 +77,6 @@ pub struct Overlays {
     pub ball_detection: EnabledOverlay<BallDetection>,
     pub horizon: EnabledOverlay<Horizon>,
     pub field_border: EnabledOverlay<FieldBorder>,
-    pub object_detection: EnabledOverlay<ObjectDetection>,
     pub pose_detection: EnabledOverlay<PoseDetection>,
 }
 
