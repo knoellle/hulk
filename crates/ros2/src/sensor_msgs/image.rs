@@ -27,6 +27,7 @@ use pyo3::{pyclass, pymethods};
     PathDeserialize,
     PathSerialize,
 )]
+#[message(name = "sensor_msgs/msg/Image")]
 pub struct Image {
     /// Header timestamp should be acquisition time of image
     /// Header frame_id should be optical frame of camera
@@ -282,5 +283,29 @@ impl TryFrom<Image> for RgbImage {
                 )),
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ros_z::Message as _;
+
+    use super::Image;
+    use crate::{builtin_interfaces::time::Time, std_msgs::header::Header};
+
+    #[test]
+    fn image_advertises_sensor_msgs_image_type_name() {
+        assert_eq!(Image::type_name(), "sensor_msgs/msg/Image");
+    }
+
+    #[test]
+    fn header_and_time_advertise_ros_type_names() {
+        assert_eq!(Header::type_name(), "std_msgs/msg/Header");
+        assert_eq!(Time::type_name(), "builtin_interfaces/msg/Time");
+    }
+
+    #[test]
+    fn image_schema_builds() {
+        Image::schema().expect("image schema");
     }
 }

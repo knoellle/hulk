@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
     PathDeserialize,
     Message,
 )]
+#[message(name = "builtin_interfaces/msg/Time")]
 pub struct Time {
     /// The seconds component, valid over all int32 values.
     pub sec: i32,

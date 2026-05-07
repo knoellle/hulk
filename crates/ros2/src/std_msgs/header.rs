@@ -19,6 +19,7 @@ use crate::builtin_interfaces::time::Time;
     PathDeserialize,
     Message,
 )]
+#[message(name = "std_msgs/msg/Header")]
 pub struct Header {
     /// Two-integer timestamp that is expressed as seconds and nanoseconds.
     pub stamp: Time,
