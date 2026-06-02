@@ -5288,6 +5288,8 @@ dependencies = [
  "criterion",
  "ndarray",
  "ort",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

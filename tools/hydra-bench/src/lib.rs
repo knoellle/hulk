@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use color_eyre::{Result, eyre::Context};
+use color_eyre::Result;
 use ndarray::Array3;
 use ort::{
     execution_providers::{CUDAExecutionProvider, TensorRTExecutionProvider},
@@ -12,12 +12,29 @@ use ort::{
 
 #[derive(Debug, Parser)]
 pub struct CliArguments {
-    /// Path to onnx model
-    pub onnx_path: PathBuf,
+    /// Paths to onnx models
+    #[arg(required = true, num_args = 1..)]
+    pub onnx_paths: Vec<PathBuf>,
 
     /// Path to cache folder
     #[arg(long, default_value = "/home/booster/hulk/etc/neural_networks/")]
     pub cache_path: PathBuf,
+
+    /// Warmup inferences before measuring
+    #[arg(long, default_value_t = 10)]
+    pub warmup: usize,
+
+    /// Measured inferences
+    #[arg(short, long, default_value_t = 100)]
+    pub iterations: usize,
+
+    /// Print benchmark results as JSON
+    #[arg(long)]
+    pub json: bool,
+
+    /// Write benchmark results to this file instead of stdout
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 pub fn run_inference<'a>(
@@ -28,12 +45,15 @@ pub fn run_inference<'a>(
         .run(inputs!["raw_bytes_input" => TensorRef::from_array_view(sample_image.view())?])?)
 }
 
-pub fn setup(args: CliArguments) -> Result<Session, color_eyre::eyre::Error> {
+pub fn setup(
+    onnx_path: impl AsRef<Path>,
+    cache_path: impl AsRef<Path>,
+) -> Result<Session, color_eyre::eyre::Error> {
     let tensor_rt = TensorRTExecutionProvider::default()
         .with_device_id(0)
         .with_fp16(true)
         .with_engine_cache(true)
-        .with_engine_cache_path(args.cache_path.display())
+        .with_engine_cache_path(cache_path.as_ref().display())
         .build()
         .error_on_failure();
     let cuda = CUDAExecutionProvider::default().build();
@@ -41,7 +61,7 @@ pub fn setup(args: CliArguments) -> Result<Session, color_eyre::eyre::Error> {
         .with_execution_providers([tensor_rt, cuda])?
         .with_optimization_level(GraphOptimizationLevel::Level3)?
         .with_intra_threads(2)?
-        .commit_from_file(args.onnx_path)?;
+        .commit_from_file(onnx_path.as_ref())?;
     Ok(session)
 }
 

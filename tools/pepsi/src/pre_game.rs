@@ -8,7 +8,7 @@ use color_eyre::{
 
 use argument_parsers::RobotAddress;
 use indicatif::ProgressBar;
-use repository::{Repository, upload::get_hulk_binary};
+use repository::{Repository, upload::get_binary};
 use robot::{Network, Robot, SystemctlAction};
 use tempfile::tempdir;
 
@@ -98,7 +98,7 @@ pub async fn pre_game(arguments: Arguments, repository: &Repository) -> Result<(
         .wrap_err("failed to configure repository")?;
 
     let upload_directory = tempdir().wrap_err("failed to get temporary directory")?;
-    let hulk_binary = get_hulk_binary(arguments.build.profile());
+    let hulk_binary = get_binary(arguments.build.profile(), "hulk_booster");
 
     let cargo_arguments = cargo::Arguments {
         manifest: Some(

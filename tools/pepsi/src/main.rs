@@ -16,6 +16,7 @@ use completions::completions;
 use game_branch::game_branch;
 use gammaray::gammaray;
 use hulk::hulk;
+use hydra_bench::hydra_bench;
 use location::location;
 use log::logs;
 use ping::ping;
@@ -43,6 +44,7 @@ mod game_branch;
 mod gammaray;
 mod git;
 mod hulk;
+mod hydra_bench;
 mod location;
 mod log;
 mod ping;
@@ -104,6 +106,8 @@ enum Command {
     /// Flash a HULKs-OS image to Robots
     #[command(visible_alias = "gammastrahl")]
     Gammaray(gammaray::Arguments),
+    /// Run Hydra neural-network latency benchmarks on a robot
+    HydraBench(hydra_bench::Arguments),
     /// Control the HULK service
     Hulk(hulk::Arguments),
     /// Install a Rust binary
@@ -240,6 +244,9 @@ async fn main() -> Result<()> {
         Command::Gammaray(arguments) => gammaray(arguments, &repository?)
             .await
             .wrap_err("failed to execute gammaray command")?,
+        Command::HydraBench(arguments) => hydra_bench(arguments, &repository?)
+            .await
+            .wrap_err("failed to execute hydra-bench command")?,
         Command::Hulk(arguments) => hulk(arguments)
             .await
             .wrap_err("failed to execute hulk command")?,
