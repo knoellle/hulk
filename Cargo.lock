@@ -7645,6 +7645,7 @@ dependencies = [
  "glob",
  "hsl_network_messages",
  "indicatif",
+ "itertools 0.14.0",
  "lazy_static",
  "opn",
  "parameters",
