@@ -179,10 +179,12 @@ impl<'a> Panel<'a> for RemotePanel {
                         match remote_stop_toggle.get_last_value() {
                             Ok(Some(value)) => {
                                 let new_remote_stop_toggle = !value;
-                                robot_clone.write(
-                                    "parameters.remote_stop_toggle",
-                                    TextOrBinary::Text(new_remote_stop_toggle.into()),
-                                );
+                                robot_clone
+                                    .write(
+                                        "parameters.remote_stop_toggle",
+                                        Value::Bool(new_remote_stop_toggle),
+                                    )
+                                    .log_err();
                             }
                             Ok(None) => {}
                             Err(error) => {
@@ -246,10 +248,12 @@ fn reset(robot: &Arc<Robot>) {
 }
 
 fn set_kick_mode_toggle(robot: &Arc<Robot>, value: bool) {
-    robot.write(
-        "parameters.behavior.remote_control.kick_mode_toggle",
-        TextOrBinary::Text(value.into()),
-    );
+    robot
+        .write(
+            "parameters.behavior.remote_control.kick_mode_toggle",
+            Value::Bool(value),
+        )
+        .log_err();
 }
 
 fn update_step(robot: &Arc<Robot>, step: Step, gait_frequency: f64) {

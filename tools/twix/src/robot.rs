@@ -2,10 +2,10 @@ use std::{
     collections::BTreeSet,
     sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
-use color_eyre::eyre::eyre;
+use color_eyre::eyre::{WrapErr, eyre};
 use log::error;
 use ros_z::{
     context::{Context, ContextBuilder},
@@ -108,7 +108,7 @@ impl Robot {
                     status_tx.send_replace(BackendConnectionStatus::Connected);
                 }
                 Err(error) => {
-                    error!("failed to connect ros-z backend: {error}");
+                    error!("failed to connect ros-z backend: {error:#}");
                     *current_backend.lock().unwrap() = None;
                     backend_tx.send_replace(None);
                     status_tx.send_replace(BackendConnectionStatus::Disconnected);
@@ -148,7 +148,8 @@ impl Robot {
 
         let mut topics = backend
             .context_graph()
-            .get_topic_names_and_types()
+            .view()
+            .topic_names_and_types()
             .into_iter()
             .map(|(name, graph_type)| TopicDescriptor { name, graph_type })
             .collect::<Vec<_>>();
@@ -249,8 +250,6 @@ impl Robot {
     ) -> BufferHandle<T>
     where
         T: ros_z::Message + Clone + Send + Sync + 'static,
-        for<'a> <T as ros_z::Message>::Codec:
-            ros_z::msg::WireDecoder<Input<'a> = &'a [u8], Output = T>,
         <T as ros_z::Message>::Codec: Send + Sync,
     {
         let topic = topic.into();
@@ -380,13 +379,14 @@ impl ConnectedBackend {
 }
 
 async fn connect_backend(endpoint: &str, generation: u64) -> color_eyre::Result<ConnectedBackend> {
+    let endpoint = normalize_router_endpoint(endpoint);
     let context = Arc::new(
         ContextBuilder::default()
             .with_mode("client")
-            .with_connect_endpoints([endpoint.to_string()])
+            .with_connect_endpoints([endpoint.clone()])
             .build()
             .await
-            .map_err(|error| eyre!(error.to_string()))?,
+            .wrap_err_with(|| format!("failed to build ros-z context for endpoint {endpoint}"))?,
     );
     let node = Arc::new(
         context
@@ -394,13 +394,27 @@ async fn connect_backend(endpoint: &str, generation: u64) -> color_eyre::Result<
             .with_namespace("tools")
             .build()
             .await
-            .map_err(|error| eyre!(error.to_string()))?,
+            .wrap_err("failed to create twix ros-z node")?,
     );
     Ok(ConnectedBackend {
         generation,
         context,
         node,
     })
+}
+
+fn normalize_router_endpoint(endpoint: &str) -> String {
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return "tcp/127.0.0.1:7447".to_string();
+    }
+    if endpoint.contains('/') {
+        return endpoint.to_string();
+    }
+    if endpoint.contains(':') {
+        return format!("tcp/{endpoint}");
+    }
+    format!("tcp/{endpoint}:7447")
 }
 
 async fn subscribe_typed_loop<T>(
@@ -410,7 +424,6 @@ async fn subscribe_typed_loop<T>(
     callbacks: Arc<Mutex<Vec<ChangeCallback>>>,
 ) where
     T: ros_z::Message + Clone + Send + Sync + 'static,
-    for<'a> <T as ros_z::Message>::Codec: ros_z::msg::WireDecoder<Input<'a> = &'a [u8], Output = T>,
     <T as ros_z::Message>::Codec: Send + Sync,
 {
     loop {
@@ -426,7 +439,9 @@ async fn subscribe_typed_loop<T>(
         };
         let generation = backend.generation;
         let subscriber_result = tokio::select! {
-            subscriber = backend.node.subscriber::<T>(&topic).build() => {
+            subscriber = async {
+                backend.node.subscriber::<T>(&topic)?.build().await
+            } => {
                 subscriber.map_err(|error| BackendError::Operation {
                     operation: "typed.subscribe",
                     message: error.to_string(),
@@ -799,7 +814,7 @@ async fn subscribe_dynamic_change_loop(
 fn dynamic_received_to_datum(received: Received<DynamicPayload>) -> Option<Datum<Value>> {
     Some(Datum {
         timestamp: received_timestamp(received.transport_time, received.source_time),
-        source_timestamp: received.source_time.map(twix_time),
+        source_timestamp: Some(twix_time(received.source_time)),
         value: dynamic_payload_to_json(&received.message),
     })
 }
@@ -807,7 +822,7 @@ fn dynamic_received_to_datum(received: Received<DynamicPayload>) -> Option<Datum
 fn typed_received_to_datum<T>(received: Received<T>) -> Option<Datum<T>> {
     Some(Datum {
         timestamp: received_timestamp(received.transport_time, received.source_time),
-        source_timestamp: received.source_time.map(twix_time),
+        source_timestamp: Some(twix_time(received.source_time)),
         value: received.message,
     })
 }
@@ -815,17 +830,15 @@ fn typed_received_to_datum<T>(received: Received<T>) -> Option<Datum<T>> {
 fn dynamic_received_to_change(received: Received<DynamicPayload>) -> Option<Change<Value>> {
     Some(Change {
         timestamp: received_timestamp(received.transport_time, received.source_time),
-        source_timestamp: received.source_time.map(twix_time),
+        source_timestamp: Some(twix_time(received.source_time)),
         value: dynamic_payload_to_json(&received.message),
     })
 }
 
-fn received_timestamp(transport_time: Option<Time>, source_time: Option<Time>) -> TwixTime {
+fn received_timestamp(transport_time: Option<Time>, source_time: Time) -> TwixTime {
     transport_time
-        .or(source_time)
         .map(twix_time)
-        .or_else(|| TwixTime::from_system_time(SystemTime::now()))
-        .unwrap_or_else(|| TwixTime::from_duration(Duration::ZERO))
+        .unwrap_or_else(|| twix_time(source_time))
 }
 
 fn twix_time(time: Time) -> TwixTime {
@@ -865,7 +878,8 @@ fn trigger_callbacks(callbacks: &Arc<Mutex<Vec<ChangeCallback>>>) {
 
 fn service_names(graph: &Graph) -> BTreeSet<String> {
     graph
-        .get_service_names_and_types()
+        .view()
+        .service_names_and_types()
         .into_iter()
         .map(|(name, _)| name)
         .collect()

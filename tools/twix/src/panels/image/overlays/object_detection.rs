@@ -4,12 +4,12 @@ use color_eyre::Result;
 use coordinate_systems::Pixel;
 use eframe::egui::{Align2, Color32, FontId, Stroke};
 use std::time::Duration;
-use types::object_detection::{Detection, Detections, NaoLabelPartyObjectDetectionLabel};
+use types::object_detection::{Object, RobocupObjectLabel};
 
 use crate::{panels::image::overlay::Overlay, robot::Robot, value_buffer::BufferHandle};
 
 pub struct ObjectDetection {
-    object_detections: BufferHandle<Detections<NaoLabelPartyObjectDetectionLabel>>,
+    object_detections: BufferHandle<Vec<Object<RobocupObjectLabel>>>,
 }
 
 impl Overlay for ObjectDetection {
@@ -26,17 +26,19 @@ impl Overlay for ObjectDetection {
             return Ok(());
         };
 
-        paint_bounding_boxes(painter, object_detections.detections, Color32::LIGHT_RED);
+        paint_bounding_boxes(painter, object_detections, Color32::LIGHT_RED);
 
         Ok(())
     }
 }
 
-fn paint_bounding_boxes(
+fn paint_bounding_boxes<T>(
     painter: &crate::twix_painter::TwixPainter<Pixel>,
-    detections: Vec<Detection<NaoLabelPartyObjectDetectionLabel>>,
+    detections: Vec<Object<T>>,
     line_color: Color32,
-) {
+) where
+    T: Into<String>,
+{
     for detection in detections {
         let bounding_box = detection.bounding_box;
         painter.rect_stroke(
