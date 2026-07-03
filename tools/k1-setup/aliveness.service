@@ -1,0 +1,13 @@
+[Unit]
+Description=HULKs Aliveness Service
+Wants=network-online.target
+After=network-online.target zenohd.service zenoh-bridge-dds.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aliveness-service
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

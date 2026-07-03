@@ -8,7 +8,7 @@ use color_eyre::{
 };
 
 use aliveness::{
-    AlivenessError, AlivenessState, Battery, JointsArray, query_aliveness,
+    AlivenessError, AlivenessState, Battery, query_aliveness,
     service_manager::{ServiceState, SystemServices},
 };
 use argument_parsers::RobotAddress;
@@ -123,12 +123,12 @@ impl SummaryElements {
         }
     }
 
-    fn append_temperature(&mut self, temperatures: &Option<JointsArray>) {
+    fn append_temperature(&mut self, temperatures: &Option<Vec<f32>>) {
         let Some(temperatures) = temperatures else {
             self.append(TEMPERATURE_ICON, "?°C", Style::new().blink());
             return;
         };
-        let maximum_temperature = temperatures.into_lola().into_iter().fold(0.0, f32::max);
+        let maximum_temperature = temperatures.iter().copied().fold(0.0, f32::max);
         if maximum_temperature > TEMPERATURE_ERROR_THRESHOLD {
             self.append(
                 TEMPERATURE_ICON,
@@ -175,10 +175,16 @@ fn print_summary(states: &AlivenessList, expected_os_version: Option<String>) {
         if let Some(expected_os_version) = &expected_os_version {
             output.append_os_version(&state.hulks_os_version, expected_os_version);
         }
-        let SystemServices { hal, hulk, lola } = state.system_services;
-        output.append_service("[HAL]", hal);
-        output.append_service("[LoLA]", lola);
+        let SystemServices {
+            hulk,
+            hulk_runtime,
+            zenoh,
+            zenoh_bridge_dds,
+        } = state.system_services;
         output.append_service("[HULK]", hulk);
+        output.append_service("[Runtime]", hulk_runtime);
+        output.append_service("[Zenoh]", zenoh);
+        output.append_service("[DDS]", zenoh_bridge_dds);
 
         let no_network = "None ".to_owned();
         let network = state.network.as_ref().unwrap_or(&no_network);
@@ -200,30 +206,52 @@ fn print_verbose(states: &AlivenessList) {
             interface_name,
             system_services,
             hulks_os_version,
-            body_id,
-            head_id,
+            robot_identity,
             battery,
             network,
             temperature,
         } = state;
 
-        let SystemServices { hal, hulk, lola } = system_services;
+        let SystemServices {
+            hulk,
+            hulk_runtime,
+            zenoh,
+            zenoh_bridge_dds,
+        } = system_services;
 
         let unknown = "Unknown".to_owned();
-        let body_id = body_id.as_ref().unwrap_or(&unknown);
-        let head_id = head_id.as_ref().unwrap_or(&unknown);
+        let robot_name = robot_identity
+            .as_ref()
+            .map(|identity| identity.name.as_str())
+            .unwrap_or(&unknown);
+        let robot_model = robot_identity
+            .as_ref()
+            .map(|identity| identity.model.as_str())
+            .unwrap_or(&unknown);
+        let robot_version = robot_identity
+            .as_ref()
+            .map(|identity| identity.version.as_str())
+            .unwrap_or(&unknown);
+        let robot_serial_number = robot_identity
+            .as_ref()
+            .map(|identity| identity.serial_number.as_str())
+            .unwrap_or(&unknown);
         let battery = battery.map_or_else(
             || unknown.clone(),
             |b| {
                 let charge = (b.charge * 100.0) as u32;
-                let current = (b.current * 1000.0) as u32;
-                format!("Charge: {charge:.0}%{:SPACING$}Current: {current:.0}mA", "")
+                let current = b.current * 1000.0;
+                let spacing = " ".repeat(SPACING);
+                format!(
+                    "Charge: {charge:.0}%{spacing}Current: {current:.0}mA{spacing}Voltage: {:.1}V",
+                    b.voltage
+                )
             },
         );
 
         let temperature = match temperature {
             Some(temperatures) => {
-                let mut temperatures: Vec<_> = temperatures.into_lola().into_iter().collect();
+                let mut temperatures = temperatures.clone();
                 temperatures.sort_unstable_by(f32::total_cmp);
 
                 let minimum_temperature = temperatures
@@ -247,20 +275,24 @@ fn print_verbose(states: &AlivenessList) {
 
         let no_network = "None".to_owned();
         let network = network.as_ref().unwrap_or(&no_network);
+        let indentation = " ".repeat(INDENTATION);
+        let spacing = " ".repeat(SPACING);
 
         println!(
             "[{ip}]\n\
-            {:INDENTATION$}Hostname:          {hostname}\n\
-            {:INDENTATION$}Interface name:    {interface_name}\n\
-            {:INDENTATION$}HULKs-OS version:  {hulks_os_version}\n\
-            {:INDENTATION$}Services:          HAL: {hal}{:SPACING$}\
-                                              HULK: {hulk}{:SPACING$}LoLA: {lola}\n\
-            {:INDENTATION$}Battery:           {battery}\n\
-            {:INDENTATION$}Network:           {network}\n\
-            {:INDENTATION$}Temperature:       {temperature}\n\
-            {:INDENTATION$}Head ID:           {head_id}\n\
-            {:INDENTATION$}Body ID:           {body_id}\n",
-            "", "", "", "", "", "", "", "", "", "", ""
+            {indentation}Hostname:          {hostname}\n\
+            {indentation}Interface name:    {interface_name}\n\
+            {indentation}HULKs-OS version:  {hulks_os_version}\n\
+            {indentation}Robot name:        {robot_name}\n\
+            {indentation}Robot model:       {robot_model}\n\
+            {indentation}Robot version:     {robot_version}\n\
+            {indentation}Serial number:     {robot_serial_number}\n\
+            {indentation}Services:          HULK: {hulk}{spacing}\
+                                            Runtime: {hulk_runtime}{spacing}\
+                                            Zenoh: {zenoh}{spacing}DDS Bridge: {zenoh_bridge_dds}\n\
+            {indentation}Battery:           {battery}\n\
+            {indentation}Network:           {network}\n\
+            {indentation}Temperature:       {temperature}\n"
         )
     }
 }

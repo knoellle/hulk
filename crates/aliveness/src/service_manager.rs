@@ -9,9 +9,10 @@ use zbus::{
 
 #[derive(Debug)]
 enum Service {
-    Hal,
     Hulk,
-    Lola,
+    HulkRuntime,
+    Zenoh,
+    ZenohBridgeDds,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -57,17 +58,19 @@ impl Display for ServiceState {
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct SystemServices {
-    pub hal: ServiceState,
     pub hulk: ServiceState,
-    pub lola: ServiceState,
+    pub hulk_runtime: ServiceState,
+    pub zenoh: ServiceState,
+    pub zenoh_bridge_dds: ServiceState,
 }
 
 impl SystemServices {
     pub async fn query(dbus_connection: &Connection) -> Result<Self, Error> {
         Ok(Self {
-            hal: get_service_state(dbus_connection, Service::Hal).await?,
             hulk: get_service_state(dbus_connection, Service::Hulk).await?,
-            lola: get_service_state(dbus_connection, Service::Lola).await?,
+            hulk_runtime: get_service_state(dbus_connection, Service::HulkRuntime).await?,
+            zenoh: get_service_state(dbus_connection, Service::Zenoh).await?,
+            zenoh_bridge_dds: get_service_state(dbus_connection, Service::ZenohBridgeDds).await?,
         })
     }
 }
@@ -77,9 +80,10 @@ async fn get_unit_path(
     service: Service,
 ) -> Result<OwnedObjectPath, Error> {
     let service_name = match service {
-        Service::Hal => "hal.service",
         Service::Hulk => "hulk.service",
-        Service::Lola => "lola.service",
+        Service::HulkRuntime => "hulk-runtime.service",
+        Service::Zenoh => "zenohd.service",
+        Service::ZenohBridgeDds => "zenoh-bridge-dds.service",
     };
 
     let proxy = Proxy::new(
@@ -97,7 +101,7 @@ async fn get_service_state(
     dbus_connection: &Connection,
     service: Service,
 ) -> Result<ServiceState, Error> {
-    let regex = Regex::new(r"Unit \w+\.service not loaded").unwrap();
+    let regex = Regex::new(r"Unit .+\.service not loaded").unwrap();
 
     let unit_path = match get_unit_path(dbus_connection, service).await {
         Ok(unit_path) => unit_path,

@@ -1,30 +1,34 @@
 use std::{
-    collections::HashMap,
     env::args,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    time::Duration,
 };
 
 use aliveness::{
     service_manager::SystemServices, AlivenessState, BEACON_HEADER, BEACON_MULTICAST_GROUP,
     BEACON_PORT,
 };
-use color_eyre::eyre::{bail, eyre, ContextCompat, Result, WrapErr};
-use futures_util::stream::StreamExt;
+use color_eyre::eyre::{bail, Result, WrapErr};
 use log::{error, info};
-use tokio::{net::UdpSocket, select, spawn, task::JoinHandle};
+use tokio::{
+    net::UdpSocket,
+    process::Command,
+    select, spawn,
+    task::JoinHandle,
+    time::{self, MissedTickBehavior},
+};
 use tokio_util::sync::CancellationToken;
 use zbus::Connection;
-use zbus::MatchRule;
-use zbus::MessageStream;
-use zbus::Proxy;
-use zbus::{
-    message::Type,
-    zvariant::{OwnedObjectPath, Value},
-};
 
 use crate::robot_info::{get_network, RobotInfo};
 
 mod robot_info;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct InterfaceAddress {
+    name: String,
+    ip: Ipv4Addr,
+}
 
 struct AlivenessService {
     token: CancellationToken,
@@ -41,141 +45,117 @@ impl AlivenessService {
     }
 }
 
-async fn listen_for_network_change(interface_name: String) -> Result<()> {
+async fn listen_for_network_change(configured_interface: Option<String>) -> Result<()> {
     let dbus_connection = Connection::system().await?;
+    let mut active_service: Option<(InterfaceAddress, AlivenessService)> = None;
+    let mut interval = time::interval(Duration::from_secs(2));
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-    let link_object = get_link_object(&interface_name, &dbus_connection).await?;
+    loop {
+        interval.tick().await;
+        let address = get_interface_address(configured_interface.as_deref()).await?;
 
-    let rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender("org.freedesktop.network1")?
-        .path(link_object)?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .build();
+        if active_service.as_ref().map(|(address, _)| address) == address.as_ref() {
+            continue;
+        }
 
-    let mut stream = MessageStream::for_match_rule(rule, &dbus_connection, Some(1)).await?;
+        if let Some((address, service)) = active_service.take() {
+            info!(
+                "IPv4 on {} changed from {}, leaving multicast",
+                address.name, address.ip
+            );
+            service.cancel();
+            service.join().await;
+        }
 
-    let mut service_option = None;
-
-    if let Some(ip) = get_ip(&interface_name, &dbus_connection).await? {
-        service_option =
-            Some(join_multicast(ip, dbus_connection.clone(), interface_name.clone()).await?);
-    }
-
-    while let Some(Ok(message)) = stream.next().await {
-        if let Ok((_, data, _)) = message
-            .body()
-            .deserialize::<(String, HashMap<String, Value>, Vec<String>)>()
-        {
-            if let Some(Value::Str(data)) = data.get("IPv4AddressState") {
-                match data.as_str() {
-                    "routable" => {
-                        info!("IPv4 on {} back online", interface_name);
-                        let ip = get_ip(&interface_name, &dbus_connection)
-                            .await?
-                            .ok_or(eyre!("failed to get IP"))?;
-                        service_option = Some(
-                            join_multicast(ip, dbus_connection.clone(), interface_name.clone())
-                                .await?,
-                        );
-                    }
-                    "off" => {
-                        info!("IPv4 on {} offline", interface_name);
-                        if let Some(service) = service_option {
-                            service.cancel();
-                            service.join().await;
-                            service_option = None;
-                        }
-                    }
-                    _ => (),
-                }
-            }
+        if let Some(address) = address {
+            info!(
+                "IPv4 on {} available as {}, joining multicast",
+                address.name, address.ip
+            );
+            let service = join_multicast(address.clone(), dbus_connection.clone()).await?;
+            active_service = Some((address, service));
         }
     }
-
-    bail!("failed to get next message")
 }
 
-async fn get_link_object(
-    interface_name: &str,
-    dbus_connection: &Connection,
-) -> Result<OwnedObjectPath> {
-    let proxy = Proxy::new(
-        dbus_connection,
-        "org.freedesktop.network1",
-        "/org/freedesktop/network1",
-        "org.freedesktop.network1.Manager",
-    )
-    .await?;
+async fn get_interface_address(interface_name: Option<&str>) -> Result<Option<InterfaceAddress>> {
+    let mut command = Command::new("ip");
+    command.args(["-j", "-4", "addr", "show"]);
+    if let Some(interface_name) = interface_name {
+        command.args(["dev", interface_name]);
+    }
 
-    let links: Vec<(i32, String, OwnedObjectPath)> = proxy.call("ListLinks", &()).await?;
+    let output = command
+        .output()
+        .await
+        .wrap_err("failed to execute ip command")?;
 
-    links
-        .into_iter()
-        .find_map(|(_, name, link_path)| {
-            if name == interface_name {
-                Some(link_path)
-            } else {
-                None
-            }
-        })
-        .context(format!(
-            "no DBus path for interface {} found",
-            interface_name
-        ))
-}
+    if !output.status.success() {
+        return Ok(None);
+    }
 
-async fn get_ip(interface_name: &str, dbus_connection: &Connection) -> Result<Option<Ipv4Addr>> {
-    let link_object = get_link_object(interface_name, dbus_connection).await?;
+    let interfaces: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .wrap_err("failed to deserialize ip command output")?;
+    let Some(interfaces) = interfaces.as_array() else {
+        return Ok(None);
+    };
 
-    let proxy = Proxy::new(
-        dbus_connection,
-        "org.freedesktop.network1",
-        link_object,
-        "org.freedesktop.network1.Link",
-    )
-    .await?;
+    let mut fallback = None;
+    for interface in interfaces {
+        let Some(name) = interface["ifname"].as_str() else {
+            continue;
+        };
+        if name == "lo" {
+            continue;
+        }
 
-    let description: String = proxy.call("Describe", &()).await?;
-    let description: serde_json::Value = serde_json::from_str(&description)?;
-
-    let address = description["Addresses"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find_map(|value| {
-            if value["Family"].as_i64().unwrap() == 2 {
-                let address = &value["Address"];
-                Some(Ipv4Addr::new(
-                    address[0].as_u64().unwrap() as u8,
-                    address[1].as_u64().unwrap() as u8,
-                    address[2].as_u64().unwrap() as u8,
-                    address[3].as_u64().unwrap() as u8,
-                ))
-            } else {
-                None
-            }
+        let address = interface["addr_info"].as_array().and_then(|addresses| {
+            addresses.iter().find_map(|address| {
+                address["local"]
+                    .as_str()
+                    .and_then(|local| local.parse::<Ipv4Addr>().ok())
+            })
         });
 
-    Ok(address)
+        let Some(ip) = address else {
+            continue;
+        };
+
+        let address = InterfaceAddress {
+            name: name.to_owned(),
+            ip,
+        };
+
+        if interface_name.is_some() || is_team_network(ip) {
+            return Ok(Some(address));
+        }
+
+        fallback.get_or_insert(address);
+    }
+
+    Ok(fallback)
+}
+
+fn is_team_network(ip: Ipv4Addr) -> bool {
+    let octets = ip.octets();
+    octets[0] == 10 && octets[1] == 1
 }
 
 async fn join_multicast(
-    ip: Ipv4Addr,
+    address: InterfaceAddress,
     dbus_connection: Connection,
-    interface_name: String,
 ) -> Result<AlivenessService> {
-    let mut robot_info = RobotInfo::initialize(&dbus_connection).await?;
+    let robot_info = RobotInfo::initialize().await?;
 
     let socket = UdpSocket::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, BEACON_PORT))
         .await
         .wrap_err("failed to bind beacon socket")?;
     socket
-        .join_multicast_v4(BEACON_MULTICAST_GROUP, ip)
-        .wrap_err_with(|| format!("failed to join multicast group on {}", ip))?;
+        .join_multicast_v4(BEACON_MULTICAST_GROUP, address.ip)
+        .wrap_err_with(|| format!("failed to join multicast group on {}", address.ip))?;
 
-    info!("Joined multicast on {}", ip);
+    info!("Joined multicast on {}", address.ip);
 
     let token = CancellationToken::new();
     let mut buffer = [0; 1024];
@@ -194,8 +174,8 @@ async fn join_multicast(
                         handle_beacon(
                             &socket,
                             &dbus_connection,
-                            &interface_name,
-                            &mut robot_info,
+                            &address.name,
+                            &robot_info,
                             &buffer[0..num_bytes],
                             peer,
                         )
@@ -215,7 +195,7 @@ async fn handle_beacon(
     socket: &UdpSocket,
     dbus_connection: &Connection,
     interface_name: &str,
-    robot_info: &mut RobotInfo,
+    robot_info: &RobotInfo,
     message: &[u8],
     peer: SocketAddr,
 ) -> Result<()> {
@@ -229,10 +209,9 @@ async fn handle_beacon(
         interface_name: interface_name.to_owned(),
         system_services,
         hulks_os_version: robot_info.hulks_os_version.to_owned(),
-        body_id: robot_info.body_id().await.to_owned(),
-        head_id: robot_info.head_id().await.to_owned(),
-        battery: robot_info.battery().await.to_owned(),
-        temperature: robot_info.temperature().await.to_owned(),
+        robot_identity: robot_info.robot_identity.clone(),
+        battery: robot_info.battery(),
+        temperature: robot_info.temperature(),
         network: get_network().await.ok().flatten(),
     };
     let send_buffer = serde_json::to_vec(&response).wrap_err("failed to serialize response")?;
@@ -247,7 +226,18 @@ async fn handle_beacon(
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let interface_name = args().nth(1).unwrap_or_else(|| "eth0".to_owned());
+    let interface_name = args().nth(1);
 
     listen_for_network_change(interface_name).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_team_network() {
+        assert!(is_team_network(Ipv4Addr::new(10, 1, 24, 22)));
+        assert!(!is_team_network(Ipv4Addr::new(192, 168, 10, 102)));
+    }
 }

@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 use service_manager::SystemServices;
 use tokio::{net::UdpSocket, time};
 
-pub use hula_types::robot_state::{Battery, JointsArray};
-
 pub mod service_manager;
 
 pub const BEACON_MULTICAST_GROUP: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 42);
@@ -23,11 +21,31 @@ pub struct AlivenessState {
     pub interface_name: String,
     pub system_services: SystemServices,
     pub hulks_os_version: String,
-    pub body_id: Option<String>,
-    pub head_id: Option<String>,
+    pub robot_identity: Option<RobotIdentity>,
     pub battery: Option<Battery>,
     pub network: Option<String>,
-    pub temperature: Option<JointsArray>,
+    pub temperature: Option<Vec<f32>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RobotIdentity {
+    pub name: String,
+    pub nickname: String,
+    pub version: String,
+    pub model: String,
+    pub serial_number: String,
+    pub edition: String,
+    pub region: String,
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct Battery {
+    pub charge: f32,
+    pub current: f32,
+    pub temperature: f32,
+    pub voltage: f32,
+    pub health: i32,
+    pub status_code: i32,
 }
 
 #[derive(Debug, thiserror::Error)]

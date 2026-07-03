@@ -13,7 +13,7 @@ use color_eyre::{
 
 use argument_parsers::RobotAddress;
 use indicatif::ProgressBar;
-use repository::{Repository, team::Team};
+use repository::{Repository, team::Team, upload::get_binary};
 use robot::{Network, Robot};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -21,7 +21,12 @@ use tokio::{
     select,
 };
 
-use crate::progress_indicator::ProgressIndicator;
+use crate::{
+    cargo::{self, CargoCommand, build, cargo, environment::EnvironmentArguments},
+    progress_indicator::ProgressIndicator,
+};
+
+const ALIVENESS_SERVICE_BINARY: &str = "aliveness-service";
 
 #[derive(Args)]
 pub struct Arguments {
@@ -42,6 +47,12 @@ pub struct Arguments {
     /// e.g. `../update_x5`
     #[arg(short, long)]
     update_x5_file: Option<PathBuf>,
+
+    #[command(flatten)]
+    environment: EnvironmentArguments,
+
+    #[command(flatten, next_help_heading = "Cargo Options")]
+    build: build::Arguments,
 }
 
 static PACKAGES: [&str; 3] = ["zenohd", "zenoh-bridge-dds", "ufw"];
@@ -56,7 +67,33 @@ grep \"https://download.eclipse.org/zenoh/debian-repo/\" /etc/apt/sources.list |
 ";
 
 pub async fn gammaray(arguments: Arguments, repository: &Repository) -> Result<()> {
+    let Arguments {
+        robots,
+        password,
+        image_file,
+        update_x5_file,
+        environment,
+        build,
+    } = arguments;
+
     let setup_path = &repository.root.join("tools/k1-setup");
+    let aliveness_binary = get_binary(build.profile(), ALIVENESS_SERVICE_BINARY);
+
+    let cargo_arguments = cargo::Arguments {
+        manifest: Some(
+            repository
+                .root
+                .join("services/aliveness/Cargo.toml")
+                .into_os_string(),
+        ),
+        environment,
+        cargo: build,
+    };
+
+    cargo(cargo_arguments, repository, &[&aliveness_binary])
+        .await
+        .wrap_err("failed to build aliveness service")?;
+    let aliveness_binary = repository.root.join(aliveness_binary);
 
     let progress = ProgressIndicator::new();
 
@@ -64,17 +101,18 @@ pub async fn gammaray(arguments: Arguments, repository: &Repository) -> Result<(
 
     progress
         .map_tasks(
-            arguments.robots,
+            robots,
             "Sending gammaray to robot".to_string(),
             |robot, progress_bar| {
                 gammaray_robot(
                     robot,
                     progress_bar,
-                    &arguments.password,
-                    arguments.image_file.as_deref(),
-                    arguments.update_x5_file.as_deref(),
+                    &password,
+                    image_file.as_deref(),
+                    update_x5_file.as_deref(),
                     &team,
                     setup_path,
+                    &aliveness_binary,
                 )
             },
         )
@@ -92,6 +130,7 @@ async fn gammaray_robot(
     update_x5_file: Option<&Path>,
     team: &Team,
     setup: &Path,
+    aliveness_binary: &Path,
 ) -> Result<()> {
     let robot = Robot::try_new_with_ping(robot.ip).await?;
 
@@ -233,6 +272,7 @@ async fn gammaray_robot(
         .arg(setup.join("hulk.service"))
         .arg(setup.join("jetson-clocks-refresh.service"))
         .arg(setup.join("jetson-clocks-refresh.timer"))
+        .arg(setup.join("aliveness.service"))
         .arg(format!("{}:/etc/systemd/system/", robot.address))
         .rsync_with_log("uploading service files", &progress_bar)
         .await?;
@@ -280,6 +320,7 @@ async fn gammaray_robot(
         .arg("--info=progress2")
         .arg(setup.join("hulk"))
         .arg(setup.join("launch-hulk"))
+        .arg(aliveness_binary)
         .arg(format!("{}:/usr/bin/", robot.address))
         .rsync_with_log("uploading binaries", &progress_bar)
         .await?;
@@ -324,6 +365,13 @@ async fn gammaray_robot(
         .ssh_to_robot()?
         .arg("sudo systemctl enable hulk && sudo systemctl restart hulk")
         .ssh_with_log("enabling and restarting hulk", &progress_bar)
+        .await?;
+
+    robot
+        .ssh_to_robot()?
+        .arg("sudo systemctl enable --now")
+        .arg("aliveness")
+        .ssh_with_log("enabling aliveness", &progress_bar)
         .await?;
 
     robot
