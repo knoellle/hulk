@@ -19,6 +19,7 @@ log = { workspace = true }
 robot = { workspace = true }
 ros-z = { workspace = true }
 serde_json = { workspace = true }
+socket2 = "0.5.10"
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 zbus = { workspace = true, features = ["tokio"] }

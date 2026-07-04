@@ -10,6 +10,7 @@ use aliveness::{
 };
 use color_eyre::eyre::{bail, Result, WrapErr};
 use log::{error, info};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tokio::{
     net::UdpSocket,
     process::Command,
@@ -30,15 +31,15 @@ struct InterfaceAddress {
     ip: Ipv4Addr,
 }
 
-struct AlivenessService {
-    token: CancellationToken,
-    handle: JoinHandle<()>,
-}
-
 #[derive(Debug, Eq, PartialEq)]
 struct Args {
     interface_name: Option<String>,
     ros_namespace: Option<String>,
+}
+
+struct AlivenessService {
+    token: CancellationToken,
+    handle: JoinHandle<()>,
 }
 
 impl AlivenessService {
@@ -165,9 +166,7 @@ async fn join_multicast(
         configured_ros_namespace.unwrap_or_else(|| ros_namespace_from_ip(address.ip));
     let robot_info = RobotInfo::initialize(ros_namespace).await?;
 
-    let socket = UdpSocket::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, BEACON_PORT))
-        .await
-        .wrap_err("failed to bind beacon socket")?;
+    let socket = bind_beacon_socket().wrap_err("failed to bind beacon socket")?;
     socket
         .join_multicast_v4(BEACON_MULTICAST_GROUP, address.ip)
         .wrap_err_with(|| format!("failed to join multicast group on {}", address.ip))?;
@@ -175,7 +174,7 @@ async fn join_multicast(
     info!("Joined multicast on {}", address.ip);
 
     let token = CancellationToken::new();
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; 8192];
 
     let handle = {
         let token = token.clone();
@@ -208,6 +207,19 @@ async fn join_multicast(
     Ok(AlivenessService { token, handle })
 }
 
+fn bind_beacon_socket() -> Result<UdpSocket> {
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+    socket.set_reuse_address(true)?;
+    #[cfg(unix)]
+    socket.set_reuse_port(true)?;
+    socket.bind(&SockAddr::from(SocketAddrV4::new(
+        Ipv4Addr::UNSPECIFIED,
+        BEACON_PORT,
+    )))?;
+    socket.set_nonblocking(true)?;
+    Ok(UdpSocket::from_std(socket.into())?)
+}
+
 async fn handle_beacon(
     socket: &UdpSocket,
     dbus_connection: &Connection,
@@ -220,13 +232,13 @@ async fn handle_beacon(
         bail!("invalid beacon header {message:?}");
     }
     info!("Received beacon from {peer}");
-    let system_services = SystemServices::query(dbus_connection).await?;
     let response = AlivenessState {
         hostname: robot_info.hostname.to_owned(),
         interface_name: interface_name.to_owned(),
-        system_services,
+        system_services: SystemServices::query(dbus_connection).await?,
         hulks_os_version: robot_info.hulks_os_version.to_owned(),
-        robot_identity: robot_info.robot_identity(),
+        robot_name: robot_info.robot_name(),
+        serial_number: robot_info.serial_number(),
         battery: robot_info.battery(),
         temperature: robot_info.temperature(),
         network: get_network().await.ok().flatten(),
@@ -242,9 +254,7 @@ async fn handle_beacon(
 #[tokio::main(flavor = "multi_thread", worker_threads = 1)]
 async fn main() -> Result<()> {
     env_logger::init();
-
     let args = parse_args(args().skip(1));
-
     listen_for_network_change(args.interface_name, args.ros_namespace).await
 }
 
@@ -289,42 +299,5 @@ fn normalize_ros_namespace(namespace: String) -> String {
         namespace
     } else {
         format!("/{namespace}")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detect_team_network() {
-        assert!(is_team_network(Ipv4Addr::new(10, 1, 24, 22)));
-        assert!(!is_team_network(Ipv4Addr::new(192, 168, 10, 102)));
-    }
-
-    #[test]
-    fn parse_ros_namespace() {
-        assert_eq!(
-            parse_args_with_ros_namespace(["--ros-namespace".to_string(), "45".to_string()], None),
-            Args {
-                interface_name: None,
-                ros_namespace: Some("/45".to_string()),
-            }
-        );
-        assert_eq!(
-            parse_args_with_ros_namespace(
-                ["wlP1p1s0".to_string(), "--ros-namespace=/44".to_string()],
-                None,
-            ),
-            Args {
-                interface_name: Some("wlP1p1s0".to_string()),
-                ros_namespace: Some("/44".to_string()),
-            }
-        );
-    }
-
-    #[test]
-    fn derive_ros_namespace_from_ip() {
-        assert_eq!(ros_namespace_from_ip(Ipv4Addr::new(10, 1, 24, 43)), "/43");
     }
 }

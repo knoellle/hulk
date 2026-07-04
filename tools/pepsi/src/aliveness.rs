@@ -184,7 +184,7 @@ fn print_summary(states: &AlivenessList, expected_os_version: Option<String>) {
         output.append_service("[HULK]", hulk);
         output.append_service("[Runtime]", hulk_runtime);
         output.append_service("[Zenoh]", zenoh);
-        output.append_service("[DDS]", zenoh_bridge_dds);
+        output.append_service("[DDS Bridge]", zenoh_bridge_dds);
 
         let no_network = "None ".to_owned();
         let network = state.network.as_ref().unwrap_or(&no_network);
@@ -206,7 +206,8 @@ fn print_verbose(states: &AlivenessList) {
             interface_name,
             system_services,
             hulks_os_version,
-            robot_identity,
+            robot_name,
+            serial_number,
             battery,
             network,
             temperature,
@@ -220,22 +221,8 @@ fn print_verbose(states: &AlivenessList) {
         } = system_services;
 
         let unknown = "Unknown".to_owned();
-        let robot_name = robot_identity
-            .as_ref()
-            .map(|identity| identity.name.as_str())
-            .unwrap_or(&unknown);
-        let robot_model = robot_identity
-            .as_ref()
-            .map(|identity| identity.model.as_str())
-            .unwrap_or(&unknown);
-        let robot_version = robot_identity
-            .as_ref()
-            .map(|identity| identity.version.as_str())
-            .unwrap_or(&unknown);
-        let robot_serial_number = robot_identity
-            .as_ref()
-            .map(|identity| identity.serial_number.as_str())
-            .unwrap_or(&unknown);
+        let robot_name = robot_name.as_ref().unwrap_or(&unknown);
+        let serial_number = serial_number.as_ref().unwrap_or(&unknown);
         let battery = battery.map_or_else(
             || unknown.clone(),
             |b| {
@@ -284,9 +271,7 @@ fn print_verbose(states: &AlivenessList) {
             {indentation}Interface name:    {interface_name}\n\
             {indentation}HULKs-OS version:  {hulks_os_version}\n\
             {indentation}Robot name:        {robot_name}\n\
-            {indentation}Robot model:       {robot_model}\n\
-            {indentation}Robot version:     {robot_version}\n\
-            {indentation}Serial number:     {robot_serial_number}\n\
+            {indentation}Serial number:     {serial_number}\n\
             {indentation}Services:          HULK: {hulk}{spacing}\
                                             Runtime: {hulk_runtime}{spacing}\
                                             Zenoh: {zenoh}{spacing}DDS Bridge: {zenoh_bridge_dds}\n\

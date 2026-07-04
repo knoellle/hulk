@@ -21,21 +21,11 @@ pub struct AlivenessState {
     pub interface_name: String,
     pub system_services: SystemServices,
     pub hulks_os_version: String,
-    pub robot_identity: Option<RobotIdentity>,
+    pub robot_name: Option<String>,
+    pub serial_number: Option<String>,
     pub battery: Option<Battery>,
     pub network: Option<String>,
     pub temperature: Option<Vec<f32>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RobotIdentity {
-    pub name: String,
-    pub nickname: String,
-    pub version: String,
-    pub model: String,
-    pub serial_number: String,
-    pub edition: String,
-    pub region: String,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
