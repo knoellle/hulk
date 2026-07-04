@@ -211,19 +211,17 @@ version = "0.2.1"
 dependencies = [
  "aliveness",
  "booster",
- "booster_sdk",
- "cdr",
  "color-eyre",
- "configparser",
  "env_logger",
- "futures-util",
  "hostname",
+ "kinematics",
  "log",
+ "robot",
+ "ros-z",
  "serde_json",
  "tokio",
  "tokio-util",
  "zbus",
- "zenoh",
 ]
 
 [[package]]
@@ -2733,15 +2731,6 @@ checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
  "portable-atomic",
-]
-
-[[package]]
-name = "configparser"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e57e3272f0190c3f1584272d613719ba5fc7df7f4942fe542e63d949cf3a649b"
-dependencies = [
- "tokio",
 ]
 
 [[package]]

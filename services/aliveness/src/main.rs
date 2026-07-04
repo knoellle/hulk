@@ -1,5 +1,5 @@
 use std::{
-    env::args,
+    env::{args, var},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     time::Duration,
 };
@@ -35,6 +35,12 @@ struct AlivenessService {
     handle: JoinHandle<()>,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct Args {
+    interface_name: Option<String>,
+    ros_namespace: Option<String>,
+}
+
 impl AlivenessService {
     fn cancel(&self) {
         self.token.cancel();
@@ -45,7 +51,10 @@ impl AlivenessService {
     }
 }
 
-async fn listen_for_network_change(configured_interface: Option<String>) -> Result<()> {
+async fn listen_for_network_change(
+    configured_interface: Option<String>,
+    configured_ros_namespace: Option<String>,
+) -> Result<()> {
     let dbus_connection = Connection::system().await?;
     let mut active_service: Option<(InterfaceAddress, AlivenessService)> = None;
     let mut interval = time::interval(Duration::from_secs(2));
@@ -73,7 +82,12 @@ async fn listen_for_network_change(configured_interface: Option<String>) -> Resu
                 "IPv4 on {} available as {}, joining multicast",
                 address.name, address.ip
             );
-            let service = join_multicast(address.clone(), dbus_connection.clone()).await?;
+            let service = join_multicast(
+                address.clone(),
+                dbus_connection.clone(),
+                configured_ros_namespace.clone(),
+            )
+            .await?;
             active_service = Some((address, service));
         }
     }
@@ -145,8 +159,11 @@ fn is_team_network(ip: Ipv4Addr) -> bool {
 async fn join_multicast(
     address: InterfaceAddress,
     dbus_connection: Connection,
+    configured_ros_namespace: Option<String>,
 ) -> Result<AlivenessService> {
-    let robot_info = RobotInfo::initialize().await?;
+    let ros_namespace =
+        configured_ros_namespace.unwrap_or_else(|| ros_namespace_from_ip(address.ip));
+    let robot_info = RobotInfo::initialize(ros_namespace).await?;
 
     let socket = UdpSocket::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, BEACON_PORT))
         .await
@@ -209,7 +226,7 @@ async fn handle_beacon(
         interface_name: interface_name.to_owned(),
         system_services,
         hulks_os_version: robot_info.hulks_os_version.to_owned(),
-        robot_identity: robot_info.robot_identity.clone(),
+        robot_identity: robot_info.robot_identity(),
         battery: robot_info.battery(),
         temperature: robot_info.temperature(),
         network: get_network().await.ok().flatten(),
@@ -222,13 +239,57 @@ async fn handle_beacon(
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 1)]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let interface_name = args().nth(1);
+    let args = parse_args(args().skip(1));
 
-    listen_for_network_change(interface_name).await
+    listen_for_network_change(args.interface_name, args.ros_namespace).await
+}
+
+fn parse_args(arguments: impl IntoIterator<Item = String>) -> Args {
+    parse_args_with_ros_namespace(arguments, var("ROS_Z_NAMESPACE").ok())
+}
+
+fn parse_args_with_ros_namespace(
+    arguments: impl IntoIterator<Item = String>,
+    env_ros_namespace: Option<String>,
+) -> Args {
+    let mut interface_name = None;
+    let mut ros_namespace = env_ros_namespace.map(normalize_ros_namespace);
+    let mut arguments = arguments.into_iter();
+
+    while let Some(argument) = arguments.next() {
+        if argument == "--ros-namespace" {
+            if let Some(namespace) = arguments.next() {
+                ros_namespace = Some(normalize_ros_namespace(namespace));
+            }
+            continue;
+        }
+        if let Some(namespace) = argument.strip_prefix("--ros-namespace=") {
+            ros_namespace = Some(normalize_ros_namespace(namespace.to_owned()));
+            continue;
+        }
+        interface_name = Some(argument);
+    }
+
+    Args {
+        interface_name,
+        ros_namespace,
+    }
+}
+
+fn ros_namespace_from_ip(ip: Ipv4Addr) -> String {
+    format!("/{}", ip.octets()[3])
+}
+
+fn normalize_ros_namespace(namespace: String) -> String {
+    if namespace.starts_with('/') {
+        namespace
+    } else {
+        format!("/{namespace}")
+    }
 }
 
 #[cfg(test)]
@@ -239,5 +300,31 @@ mod tests {
     fn detect_team_network() {
         assert!(is_team_network(Ipv4Addr::new(10, 1, 24, 22)));
         assert!(!is_team_network(Ipv4Addr::new(192, 168, 10, 102)));
+    }
+
+    #[test]
+    fn parse_ros_namespace() {
+        assert_eq!(
+            parse_args_with_ros_namespace(["--ros-namespace".to_string(), "45".to_string()], None),
+            Args {
+                interface_name: None,
+                ros_namespace: Some("/45".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_args_with_ros_namespace(
+                ["wlP1p1s0".to_string(), "--ros-namespace=/44".to_string()],
+                None,
+            ),
+            Args {
+                interface_name: Some("wlP1p1s0".to_string()),
+                ros_namespace: Some("/44".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn derive_ros_namespace_from_ip() {
+        assert_eq!(ros_namespace_from_ip(Ipv4Addr::new(10, 1, 24, 43)), "/43");
     }
 }

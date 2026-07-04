@@ -342,6 +342,12 @@ async fn gammaray_robot(
 
     robot
         .ssh_to_robot()?
+        .arg("sudo systemctl daemon-reload")
+        .ssh_with_log("reloading service daemon", &progress_bar)
+        .await?;
+
+    robot
+        .ssh_to_robot()?
         .arg("sudo systemctl enable zenohd && sudo systemctl restart zenohd")
         .ssh_with_log("enabling and restarting zenohd services", &progress_bar)
         .await?;
