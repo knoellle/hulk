@@ -227,12 +227,7 @@ fn print_verbose(states: &AlivenessList) {
             || unknown.clone(),
             |b| {
                 let charge = (b.charge * 100.0) as u32;
-                let current = b.current * 1000.0;
-                let spacing = " ".repeat(SPACING);
-                format!(
-                    "Charge: {charge:.0}%{spacing}Current: {current:.0}mA{spacing}Voltage: {:.1}V",
-                    b.voltage
-                )
+                format!("Charge: {charge:.0}%")
             },
         );
 
