@@ -18,7 +18,6 @@ kinematics = { workspace = true }
 log = { workspace = true }
 robot = { workspace = true }
 ros-z = { workspace = true }
-rustdds = { git = "https://github.com/HULKs/RustDDS.git", rev = "0232af0c67e25e39afb5eef0166edfe493762320" }
 serde_json = { workspace = true }
 socket2 = "0.5.10"
 tokio = { workspace = true }

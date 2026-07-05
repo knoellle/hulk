@@ -7,37 +7,13 @@ use kinematics::joints::Joints;
 use log::{debug, warn};
 use robot::extract_version_number;
 use ros_z::context::ContextBuilder;
-use rustdds::{
-    no_key::{Decode, DefaultDecoder, DeserializerAdapter},
-    policy, DomainParticipant, QosPolicyBuilder, ReadCondition, RepresentationIdentifier,
-    TopicKind,
-};
 use tokio::{fs, process::Command, sync::watch, task::JoinHandle, time::sleep};
 
 const BOOSTER_VERSION_PATH: &str = "/opt/booster/version.txt";
-const BATTERY_TOPIC: &str = "rt/device_gateway";
-const BATTERY_TYPE: &str = "booster_interface::msg::dds_::RobotStatusDdsMsg_";
-const DDS_DOMAIN_ID: u16 = 0;
+const DEVICE_GATEWAY_TOPIC: &str = "rt/device_gateway";
+const BATTERY_STATE_TOPIC: &str = "rt/battery_state";
 const ROS_Z_ROUTER_ENDPOINT: &str = "tcp/127.0.0.1:7447";
 const TELEMETRY_RETRY_DELAY: Duration = Duration::from_secs(2);
-
-const BATTERY_ENCODINGS: [RepresentationIdentifier; 10] = [
-    RepresentationIdentifier::CDR_BE,
-    RepresentationIdentifier::CDR_LE,
-    RepresentationIdentifier::PL_CDR_BE,
-    RepresentationIdentifier::PL_CDR_LE,
-    RepresentationIdentifier::CDR2_BE,
-    RepresentationIdentifier::CDR2_LE,
-    RepresentationIdentifier::XCDR2_BE,
-    RepresentationIdentifier::XCDR2_LE,
-    RepresentationIdentifier::PL_XCDR2_BE,
-    RepresentationIdentifier::PL_XCDR2_LE,
-];
-
-struct BatteryDeserializerAdapter;
-
-#[derive(Clone, Copy)]
-struct BatteryDecoder;
 
 #[derive(Debug)]
 struct BatteryDecodeError(String);
@@ -49,37 +25,6 @@ impl fmt::Display for BatteryDecodeError {
 }
 
 impl Error for BatteryDecodeError {}
-
-impl DeserializerAdapter<Battery> for BatteryDeserializerAdapter {
-    type Error = BatteryDecodeError;
-    type Decoded = Battery;
-
-    fn supported_encodings() -> &'static [RepresentationIdentifier] {
-        &BATTERY_ENCODINGS
-    }
-
-    fn transform_decoded(decoded: Self::Decoded) -> Battery {
-        decoded
-    }
-}
-
-impl DefaultDecoder<Battery> for BatteryDeserializerAdapter {
-    type Decoder = BatteryDecoder;
-
-    const DECODER: Self::Decoder = BatteryDecoder;
-}
-
-impl Decode<Battery> for BatteryDecoder {
-    type Error = BatteryDecodeError;
-
-    fn decode_bytes(
-        self,
-        input_bytes: &[u8],
-        encoding: RepresentationIdentifier,
-    ) -> std::result::Result<Battery, Self::Error> {
-        decode_battery_payload(input_bytes, encoding)
-    }
-}
 
 pub struct RobotInfo {
     pub hulks_os_version: String,
@@ -146,45 +91,51 @@ impl Drop for RobotInfo {
 async fn watch_battery(sender: watch::Sender<Option<Battery>>) {
     loop {
         match watch_battery_until_disconnect(&sender).await {
-            Ok(()) => warn!("DDS battery subscription ended"),
-            Err(error) => warn!("failed to watch DDS battery state: {error:#}"),
+            Ok(()) => warn!("Zenoh battery subscription ended"),
+            Err(error) => warn!("failed to watch Zenoh battery state: {error:#}"),
         }
         sleep(TELEMETRY_RETRY_DELAY).await;
     }
 }
 
 async fn watch_battery_until_disconnect(sender: &watch::Sender<Option<Battery>>) -> Result<()> {
-    let participant = DomainParticipant::new(DDS_DOMAIN_ID)
-        .wrap_err("failed to create DDS domain participant")?;
-    let qos = QosPolicyBuilder::new()
-        .reliability(policy::Reliability::BestEffort)
-        .durability(policy::Durability::Volatile)
-        .history(policy::History::KeepLast { depth: 1 })
-        .build();
-    let subscriber = participant
-        .create_subscriber(&qos)
-        .wrap_err("failed to create DDS subscriber")?;
-    let topic = participant
-        .create_topic(
-            BATTERY_TOPIC.to_string(),
-            BATTERY_TYPE.to_string(),
-            &qos,
-            TopicKind::NoKey,
-        )
-        .wrap_err("failed to create DDS battery topic")?;
-    let mut reader = subscriber
-        .create_datareader_no_key::<Battery, BatteryDeserializerAdapter>(&topic, Some(qos))
-        .wrap_err("failed to create DDS battery reader")?;
+    let context = ContextBuilder::default()
+        .with_mode("client")
+        .with_connect_endpoints([ROS_Z_ROUTER_ENDPOINT])
+        .build()
+        .await
+        .wrap_err("failed to create ROS-Z context for battery state")?;
+    let zenoh_session = context.session();
+    let device_gateway_sub = zenoh_session
+        .declare_subscriber(DEVICE_GATEWAY_TOPIC)
+        .await
+        .map_err(|error| eyre!("failed to subscribe to {DEVICE_GATEWAY_TOPIC}: {error}"))?;
+    let battery_state_sub = zenoh_session
+        .declare_subscriber(BATTERY_STATE_TOPIC)
+        .await
+        .map_err(|error| eyre!("failed to subscribe to {BATTERY_STATE_TOPIC}: {error}"))?;
 
     loop {
-        let samples = reader
-            .take(usize::MAX, ReadCondition::not_read())
-            .wrap_err("failed to read DDS battery samples")?;
-        for sample in samples {
-            let _ = sender.send(Some(sample.into_value()));
+        tokio::select! {
+            sample = device_gateway_sub.recv_async() => {
+                let sample = sample.map_err(|error| eyre!("failed to receive sample from {DEVICE_GATEWAY_TOPIC}: {error}"))?;
+                match decode_device_gateway_battery_payload(&sample.payload().to_bytes()) {
+                    Ok(battery) => {
+                        let _ = sender.send(Some(battery));
+                    }
+                    Err(error) => debug!("failed to decode {DEVICE_GATEWAY_TOPIC} battery payload: {error}"),
+                }
+            }
+            sample = battery_state_sub.recv_async() => {
+                let sample = sample.map_err(|error| eyre!("failed to receive sample from {BATTERY_STATE_TOPIC}: {error}"))?;
+                match decode_battery_state_payload(&sample.payload().to_bytes()) {
+                    Ok(battery) => {
+                        let _ = sender.send(Some(battery));
+                    }
+                    Err(error) => debug!("failed to decode {BATTERY_STATE_TOPIC} payload: {error}"),
+                }
+            }
         }
-
-        sleep(Duration::from_millis(100)).await;
     }
 }
 
@@ -196,40 +147,85 @@ fn normalize_charge(charge: f32) -> f32 {
     }
 }
 
-fn decode_battery_payload(
+fn decode_device_gateway_battery_payload(
     input_bytes: &[u8],
-    encoding: RepresentationIdentifier,
 ) -> std::result::Result<Battery, BatteryDecodeError> {
-    let little_endian = match encoding {
-        RepresentationIdentifier::CDR_LE
-        | RepresentationIdentifier::PL_CDR_LE
-        | RepresentationIdentifier::CDR2_LE
-        | RepresentationIdentifier::XCDR2_LE
-        | RepresentationIdentifier::PL_XCDR2_LE => true,
-        RepresentationIdentifier::CDR_BE
-        | RepresentationIdentifier::PL_CDR_BE
-        | RepresentationIdentifier::CDR2_BE
-        | RepresentationIdentifier::XCDR2_BE
-        | RepresentationIdentifier::PL_XCDR2_BE => false,
-        _ => {
-            return Err(BatteryDecodeError(format!(
-                "unsupported battery representation {:?}",
-                encoding.to_bytes()
-            )))
-        }
-    };
+    decode_payload_with_cdr_guesses(input_bytes, decode_robot_status_battery, "device_gateway")
+}
 
-    for offset in [0, 4, 8] {
-        if let Ok(battery) = decode_robot_status_battery(input_bytes, offset, little_endian) {
+fn decode_battery_state_payload(
+    input_bytes: &[u8],
+) -> std::result::Result<Battery, BatteryDecodeError> {
+    decode_payload_with_cdr_guesses(input_bytes, decode_battery_state, "battery_state")
+}
+
+fn decode_payload_with_cdr_guesses(
+    input_bytes: &[u8],
+    decode: impl Fn(&[u8], usize, bool) -> std::result::Result<Battery, BatteryDecodeError>,
+    topic_name: &str,
+) -> std::result::Result<Battery, BatteryDecodeError> {
+    for (offset, little_endian) in cdr_guesses(input_bytes) {
+        if let Ok(battery) = decode(input_bytes, offset, little_endian) {
             return Ok(battery);
         }
     }
 
     Err(BatteryDecodeError(format!(
-        "could not decode battery payload with {} bytes and representation {:?}",
+        "could not decode {topic_name} payload with {} bytes",
         input_bytes.len(),
-        encoding.to_bytes()
     )))
+}
+
+fn cdr_guesses(input_bytes: &[u8]) -> Vec<(usize, bool)> {
+    let mut guesses = Vec::new();
+    if input_bytes.len() >= 4 {
+        match input_bytes[..2] {
+            [0, 0] | [0, 2] => guesses.push((4, false)),
+            [0, 1] | [0, 3] => guesses.push((4, true)),
+            [1, 0] | [3, 0] => guesses.push((4, true)),
+            [2, 0] => guesses.push((4, false)),
+            _ => {}
+        }
+    }
+    for offset in [0, 4, 8] {
+        guesses.push((offset, true));
+        guesses.push((offset, false));
+    }
+    guesses
+}
+
+fn decode_battery_state(
+    input_bytes: &[u8],
+    offset: usize,
+    little_endian: bool,
+) -> std::result::Result<Battery, BatteryDecodeError> {
+    let mut reader = CdrReader::new(input_bytes, offset, little_endian);
+
+    let voltage = reader.read_f32()?;
+    let current = reader.read_f32()?;
+    let charge = reader.read_f32()?;
+    let average_voltage = reader.read_f32()?;
+
+    debug!(
+        "Zenoh battery_state candidate: charge={charge}, current={current}, voltage={voltage}, average_voltage={average_voltage}"
+    );
+
+    let battery = Battery {
+        charge: normalize_charge(charge),
+        current: 0.0,
+        temperature: 0.0,
+        voltage: 0.0,
+        health: 0,
+        status_code: 0,
+    };
+
+    if is_valid_battery(&battery) {
+        Ok(battery)
+    } else {
+        Err(BatteryDecodeError(
+            "BatteryState did not contain a valid charge".to_string(),
+        ))
+    }
 }
 
 fn decode_robot_status_battery(
@@ -292,7 +288,7 @@ fn read_battery_status(
     let status_level = reader.read_i32()?;
 
     debug!(
-        "DDS battery candidate: charge={charge}, status_code={status_code}, status_level={status_level}"
+        "Zenoh device_gateway battery candidate: charge={charge}, status_code={status_code}, status_level={status_level}"
     );
 
     Ok(Battery {

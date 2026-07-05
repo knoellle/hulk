@@ -46,6 +46,8 @@
       ////           allow: "cmd_vel|rosout"
       ////
       allow: [
+        "device_gateway",
+        "battery_state",
         "low_state",
         "joint_states",
         "image_left_raw",
