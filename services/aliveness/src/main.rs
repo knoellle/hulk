@@ -236,7 +236,7 @@ async fn handle_beacon(
         hostname: robot_info.hostname.to_owned(),
         interface_name: interface_name.to_owned(),
         system_services: SystemServices::query(dbus_connection).await?,
-        hulks_os_version: robot_info.hulks_os_version.to_owned(),
+        os_version: robot_info.os_version.to_owned(),
         robot_name: robot_info.robot_name(),
         serial_number: robot_info.serial_number(),
         battery: robot_info.battery(),

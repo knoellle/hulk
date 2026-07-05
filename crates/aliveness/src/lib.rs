@@ -20,7 +20,7 @@ pub struct AlivenessState {
     pub hostname: String,
     pub interface_name: String,
     pub system_services: SystemServices,
-    pub hulks_os_version: String,
+    pub os_version: String,
     pub robot_name: Option<String>,
     pub serial_number: Option<String>,
     pub battery: Option<Battery>,

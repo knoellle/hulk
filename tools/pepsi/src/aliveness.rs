@@ -173,7 +173,7 @@ fn print_summary(states: &AlivenessList, expected_os_version: Option<String>) {
         output.append_battery(&state.battery);
         output.append_temperature(&state.temperature);
         if let Some(expected_os_version) = &expected_os_version {
-            output.append_os_version(&state.hulks_os_version, expected_os_version);
+            output.append_os_version(&state.os_version, expected_os_version);
         }
         let SystemServices {
             hulk,
@@ -205,7 +205,7 @@ fn print_verbose(states: &AlivenessList) {
             hostname,
             interface_name,
             system_services,
-            hulks_os_version,
+            os_version,
             robot_name,
             serial_number,
             battery,
@@ -264,7 +264,7 @@ fn print_verbose(states: &AlivenessList) {
             "[{ip}]\n\
             {indentation}Hostname:          {hostname}\n\
             {indentation}Interface name:    {interface_name}\n\
-            {indentation}HULKs-OS version:  {hulks_os_version}\n\
+            {indentation}OS version:        {os_version}\n\
             {indentation}Robot name:        {robot_name}\n\
             {indentation}Serial number:     {serial_number}\n\
             {indentation}Services:          HULK: {hulk}{spacing}\

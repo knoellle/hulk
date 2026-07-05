@@ -7,7 +7,7 @@ Aliveness is a system for querying status information from booster robots in the
 The following information can be queried from booster robots connected via Ethernet:
 
 - Hostname
-- Current HULKs-OS version
+- Current OS version
 - States of the systemd services for HULK, the HULK runtime, Zenoh and the DDS bridge
 - Battery charge state, current, voltage and temperature
 - Booster robot identity and serial number, when the SDK RPC is available

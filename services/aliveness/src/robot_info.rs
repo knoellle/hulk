@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, time::Duration};
+use std::time::Duration;
 
 use aliveness::Battery;
 use booster::MotorState;
@@ -7,6 +7,7 @@ use kinematics::joints::Joints;
 use log::{debug, warn};
 use robot::extract_version_number;
 use ros_z::context::ContextBuilder;
+use serde::Deserialize;
 use tokio::{fs, process::Command, sync::watch, task::JoinHandle, time::sleep};
 
 const BOOSTER_VERSION_PATH: &str = "/opt/booster/version.txt";
@@ -15,19 +16,8 @@ const BATTERY_STATE_TOPIC: &str = "rt/battery_state";
 const ROS_Z_ROUTER_ENDPOINT: &str = "tcp/127.0.0.1:7447";
 const TELEMETRY_RETRY_DELAY: Duration = Duration::from_secs(2);
 
-#[derive(Debug)]
-struct BatteryDecodeError(String);
-
-impl fmt::Display for BatteryDecodeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl Error for BatteryDecodeError {}
-
 pub struct RobotInfo {
-    pub hulks_os_version: String,
+    pub os_version: String,
     pub hostname: String,
     serial_number: Option<String>,
     battery_receiver: watch::Receiver<Option<Battery>>,
@@ -37,7 +27,7 @@ pub struct RobotInfo {
 
 impl RobotInfo {
     pub async fn initialize(ros_namespace: String) -> Result<Self> {
-        let hulks_os_version = get_hulks_os_version()
+        let os_version = get_os_version()
             .await
             .wrap_err("failed to load Booster OS version")?;
         let hostname = hostname::get()
@@ -54,7 +44,7 @@ impl RobotInfo {
         ];
 
         Ok(Self {
-            hulks_os_version,
+            os_version,
             hostname,
             serial_number,
             battery_receiver,
@@ -147,278 +137,120 @@ fn normalize_charge(charge: f32) -> f32 {
     }
 }
 
-fn decode_device_gateway_battery_payload(
-    input_bytes: &[u8],
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    decode_payload_with_cdr_guesses(input_bytes, decode_robot_status_battery, "device_gateway")
+fn decode_device_gateway_battery_payload(input_bytes: &[u8]) -> Result<Battery> {
+    let robot_status: RobotStatusDdsMsg = cdr::deserialize(input_bytes)
+        .wrap_err("failed to deserialize rt/device_gateway payload")?;
+
+    robot_status
+        .battery_vec
+        .into_iter()
+        .map(RobotDdsBatteryStatus::into_battery)
+        .find(is_valid_battery)
+        .ok_or_else(|| eyre!("RobotStatusDdsMsg did not contain a valid battery status"))
 }
 
-fn decode_battery_state_payload(
-    input_bytes: &[u8],
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    decode_payload_with_cdr_guesses(input_bytes, decode_battery_state, "battery_state")
-}
-
-fn decode_payload_with_cdr_guesses(
-    input_bytes: &[u8],
-    decode: impl Fn(&[u8], usize, bool) -> std::result::Result<Battery, BatteryDecodeError>,
-    topic_name: &str,
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    for (offset, little_endian) in cdr_guesses(input_bytes) {
-        if let Ok(battery) = decode(input_bytes, offset, little_endian) {
-            return Ok(battery);
-        }
-    }
-
-    Err(BatteryDecodeError(format!(
-        "could not decode {topic_name} payload with {} bytes",
-        input_bytes.len(),
-    )))
-}
-
-fn cdr_guesses(input_bytes: &[u8]) -> Vec<(usize, bool)> {
-    let mut guesses = Vec::new();
-    if input_bytes.len() >= 4 {
-        match input_bytes[..2] {
-            [0, 0] | [0, 2] => guesses.push((4, false)),
-            [0, 1] | [0, 3] => guesses.push((4, true)),
-            [1, 0] | [3, 0] => guesses.push((4, true)),
-            [2, 0] => guesses.push((4, false)),
-            _ => {}
-        }
-    }
-    for offset in [0, 4, 8] {
-        guesses.push((offset, true));
-        guesses.push((offset, false));
-    }
-    guesses
-}
-
-fn decode_battery_state(
-    input_bytes: &[u8],
-    offset: usize,
-    little_endian: bool,
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    let mut reader = CdrReader::new(input_bytes, offset, little_endian);
-
-    let voltage = reader.read_f32()?;
-    let current = reader.read_f32()?;
-    let charge = reader.read_f32()?;
-    let average_voltage = reader.read_f32()?;
-
-    debug!(
-        "Zenoh battery_state candidate: charge={charge}, current={current}, voltage={voltage}, average_voltage={average_voltage}"
-    );
-
-    let battery = Battery {
-        charge: normalize_charge(charge),
-        current: 0.0,
-        temperature: 0.0,
-        voltage: 0.0,
-        health: 0,
-        status_code: 0,
-    };
+fn decode_battery_state_payload(input_bytes: &[u8]) -> Result<Battery> {
+    let battery_state: BatteryState =
+        cdr::deserialize(input_bytes).wrap_err("failed to deserialize rt/battery_state payload")?;
+    let battery = battery_state.into_battery();
 
     if is_valid_battery(&battery) {
         Ok(battery)
     } else {
-        Err(BatteryDecodeError(
-            "BatteryState did not contain a valid charge".to_string(),
-        ))
+        Err(eyre!("BatteryState did not contain a valid charge"))
     }
 }
 
-fn decode_robot_status_battery(
-    input_bytes: &[u8],
-    offset: usize,
-    little_endian: bool,
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    let mut reader = CdrReader::new(input_bytes, offset, little_endian);
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct RobotStatusDdsMsg {
+    joint_vec: Vec<RobotDdsJointStatus>,
+    imu_vec: Vec<RobotDdsImuStatus>,
+    battery_vec: Vec<RobotDdsBatteryStatus>,
+}
 
-    let joint_count = reader.read_sequence_length("joint_vec")?;
-    for _ in 0..joint_count {
-        skip_joint_status(&mut reader)?;
-    }
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct RobotDdsJointStatus {
+    name: String,
+    mode: i32,
+    is_enable: bool,
+    status_code: i32,
+    error_code: i32,
+    status_level: i32,
+    temperature: i32,
+}
 
-    let imu_count = reader.read_sequence_length("imu_vec")?;
-    for _ in 0..imu_count {
-        skip_imu_status(&mut reader)?;
-    }
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct RobotDdsImuStatus {
+    name: String,
+    status_code: i32,
+    is_enable: bool,
+    status_level: i32,
+}
 
-    let battery_count = reader.read_sequence_length("battery_vec")?;
-    for _ in 0..battery_count {
-        let battery = read_battery_status(&mut reader)?;
-        if is_valid_battery(&battery) {
-            return Ok(battery);
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct RobotDdsBatteryStatus {
+    name: String,
+    temperature: f32,
+    soc: f32,
+    voltage: f32,
+    status_code: i32,
+    status_level: i32,
+}
+
+impl RobotDdsBatteryStatus {
+    fn into_battery(self) -> Battery {
+        debug!(
+            "Zenoh device_gateway battery candidate: charge={}, status_code={}, status_level={}",
+            self.soc, self.status_code, self.status_level,
+        );
+
+        Battery {
+            charge: normalize_charge(self.soc),
+            current: 0.0,
+            temperature: 0.0,
+            voltage: 0.0,
+            health: self.status_level,
+            status_code: self.status_code,
         }
     }
-
-    Err(BatteryDecodeError(
-        "RobotStatusDdsMsg did not contain a valid battery status".to_string(),
-    ))
 }
 
-fn skip_joint_status(reader: &mut CdrReader<'_>) -> std::result::Result<(), BatteryDecodeError> {
-    reader.skip_string()?;
-    reader.skip_i32()?;
-    reader.skip_bool()?;
-    reader.skip_i32()?;
-    reader.skip_i32()?;
-    reader.skip_i32()?;
-    reader.skip_i32()?;
-    Ok(())
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct BatteryState {
+    voltage: f32,
+    current: f32,
+    soc: f32,
+    average_voltage: f32,
 }
 
-fn skip_imu_status(reader: &mut CdrReader<'_>) -> std::result::Result<(), BatteryDecodeError> {
-    reader.skip_string()?;
-    reader.skip_i32()?;
-    reader.skip_bool()?;
-    reader.skip_i32()?;
-    Ok(())
-}
+impl BatteryState {
+    fn into_battery(self) -> Battery {
+        debug!(
+            "Zenoh battery_state candidate: charge={}, current={}, voltage={}, average_voltage={}",
+            self.soc, self.current, self.voltage, self.average_voltage,
+        );
 
-fn read_battery_status(
-    reader: &mut CdrReader<'_>,
-) -> std::result::Result<Battery, BatteryDecodeError> {
-    reader.skip_string()?;
-    let _temperature = reader.read_f32()?;
-    let charge = reader.read_f32()?;
-    let _voltage = reader.read_f32()?;
-    let status_code = reader.read_i32()?;
-    let status_level = reader.read_i32()?;
-
-    debug!(
-        "Zenoh device_gateway battery candidate: charge={charge}, status_code={status_code}, status_level={status_level}"
-    );
-
-    Ok(Battery {
-        charge: normalize_charge(charge),
-        current: 0.0,
-        temperature: 0.0,
-        voltage: 0.0,
-        health: status_level,
-        status_code,
-    })
+        Battery {
+            charge: normalize_charge(self.soc),
+            current: 0.0,
+            temperature: 0.0,
+            voltage: 0.0,
+            health: 0,
+            status_code: 0,
+        }
+    }
 }
 
 fn is_valid_battery(battery: &Battery) -> bool {
     battery.charge.is_finite() && (0.0..=1.0).contains(&battery.charge)
 }
 
-struct CdrReader<'a> {
-    input_bytes: &'a [u8],
-    position: usize,
-    little_endian: bool,
-}
-
-impl<'a> CdrReader<'a> {
-    fn new(input_bytes: &'a [u8], position: usize, little_endian: bool) -> Self {
-        Self {
-            input_bytes,
-            position,
-            little_endian,
-        }
-    }
-
-    fn read_sequence_length(
-        &mut self,
-        field_name: &str,
-    ) -> std::result::Result<usize, BatteryDecodeError> {
-        let length = self.read_u32()? as usize;
-        if length > 100 {
-            return Err(BatteryDecodeError(format!(
-                "implausible {field_name} length {length}"
-            )));
-        }
-        Ok(length)
-    }
-
-    fn skip_string(&mut self) -> std::result::Result<(), BatteryDecodeError> {
-        let length = self.read_u32()? as usize;
-        if length == 0 {
-            return Ok(());
-        }
-        self.read_bytes(length)?;
-        Ok(())
-    }
-
-    fn skip_i32(&mut self) -> std::result::Result<(), BatteryDecodeError> {
-        self.read_i32()?;
-        Ok(())
-    }
-
-    fn skip_bool(&mut self) -> std::result::Result<(), BatteryDecodeError> {
-        self.align(1)?;
-        self.read_bytes(1)?;
-        Ok(())
-    }
-
-    fn read_i32(&mut self) -> std::result::Result<i32, BatteryDecodeError> {
-        let bytes = self.read_primitive_bytes()?;
-        Ok(if self.little_endian {
-            i32::from_le_bytes(bytes)
-        } else {
-            i32::from_be_bytes(bytes)
-        })
-    }
-
-    fn read_u32(&mut self) -> std::result::Result<u32, BatteryDecodeError> {
-        let bytes = self.read_primitive_bytes()?;
-        Ok(if self.little_endian {
-            u32::from_le_bytes(bytes)
-        } else {
-            u32::from_be_bytes(bytes)
-        })
-    }
-
-    fn read_f32(&mut self) -> std::result::Result<f32, BatteryDecodeError> {
-        let bytes = self.read_primitive_bytes()?;
-        Ok(if self.little_endian {
-            f32::from_le_bytes(bytes)
-        } else {
-            f32::from_be_bytes(bytes)
-        })
-    }
-
-    fn read_primitive_bytes(&mut self) -> std::result::Result<[u8; 4], BatteryDecodeError> {
-        self.align(4)?;
-        Ok(self.read_bytes(4)?.try_into().expect("slice length is 4"))
-    }
-
-    fn read_bytes(&mut self, length: usize) -> std::result::Result<&'a [u8], BatteryDecodeError> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or_else(|| BatteryDecodeError("CDR cursor overflow".to_string()))?;
-        let bytes = self.input_bytes.get(self.position..end).ok_or_else(|| {
-            BatteryDecodeError(format!(
-                "CDR payload ended at byte {} while reading {length} bytes from byte {}",
-                self.input_bytes.len(),
-                self.position,
-            ))
-        })?;
-        self.position = end;
-        Ok(bytes)
-    }
-
-    fn align(&mut self, alignment: usize) -> std::result::Result<(), BatteryDecodeError> {
-        self.position = self
-            .position
-            .checked_add(alignment - 1)
-            .map(|position| position & !(alignment - 1))
-            .ok_or_else(|| BatteryDecodeError("CDR cursor overflow".to_string()))?;
-        if self.position > self.input_bytes.len() {
-            return Err(BatteryDecodeError(format!(
-                "CDR payload ended at byte {} while aligning to byte {}",
-                self.input_bytes.len(),
-                self.position,
-            )));
-        }
-        Ok(())
-    }
-}
-
-async fn get_hulks_os_version() -> Result<String> {
+async fn get_os_version() -> Result<String> {
     let contents = fs::read_to_string(BOOSTER_VERSION_PATH)
         .await
         .wrap_err_with(|| format!("failed to read {BOOSTER_VERSION_PATH}"))?;

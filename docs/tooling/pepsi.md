@@ -58,7 +58,7 @@ However `upload` and `pregame` only supports a profiles, since it doesn't make s
 
 ## Aliveness
 
-Using the `aliveness` subcommand, pepsi can query information from NAOs connected via ethernet. By default, only irregular information like non-active services, outdated HULKs-OS versions and battery charge levels below 95% are displayed. Using `-v`/`--verbose` or `-j`/`--json`, you can retrieve all information available via aliveness in either a human- or machine-readable format.
+Using the `aliveness` subcommand, pepsi can query information from NAOs connected via ethernet. By default, only irregular information like non-active services, outdated OS versions and battery charge levels below 95% are displayed. Using `-v`/`--verbose` or `-j`/`--json`, you can retrieve all information available via aliveness in either a human- or machine-readable format.
 
 You can also set a timeout via `-t`/`--timeout` (defaulting to 200ms) and specify NAO addresses (e.g. `22` or `10.1.24.22`) for querying the aliveness information only from specific NAOs.
 

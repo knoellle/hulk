@@ -211,6 +211,7 @@ version = "0.2.1"
 dependencies = [
  "aliveness",
  "booster",
+ "cdr",
  "color-eyre",
  "env_logger",
  "hostname",
@@ -218,6 +219,7 @@ dependencies = [
  "log",
  "robot",
  "ros-z",
+ "serde",
  "serde_json",
  "socket2 0.5.10",
  "tokio",
