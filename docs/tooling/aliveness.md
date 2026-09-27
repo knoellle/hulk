@@ -9,8 +9,8 @@ The following information can be queried from booster robots connected via Ether
 - Hostname
 - Current OS version
 - States of the systemd services for HULK, the HULK runtime, Zenoh and the DDS bridge
-- Battery charge state, current, voltage and temperature
-- Booster robot identity and serial number, when the SDK RPC is available
+- Battery charge state
+- Hostname-based robot identity and Jetson serial number
 - Wireless network name
 - Motor temperatures
 - Name of the interface the beacon is received from

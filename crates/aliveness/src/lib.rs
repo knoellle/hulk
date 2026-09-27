@@ -23,19 +23,9 @@ pub struct AlivenessState {
     pub os_version: String,
     pub robot_name: Option<String>,
     pub serial_number: Option<String>,
-    pub battery: Option<Battery>,
+    pub battery_charge: Option<f32>,
     pub network: Option<String>,
     pub temperature: Option<Vec<f32>>,
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct Battery {
-    pub charge: f32,
-    pub current: f32,
-    pub temperature: f32,
-    pub voltage: f32,
-    pub health: i32,
-    pub status_code: i32,
 }
 
 #[derive(Debug, thiserror::Error)]

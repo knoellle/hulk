@@ -8,7 +8,7 @@ use color_eyre::{
 };
 
 use aliveness::{
-    AlivenessError, AlivenessState, Battery, query_aliveness,
+    AlivenessError, AlivenessState, query_aliveness,
     service_manager::{ServiceState, SystemServices},
 };
 use argument_parsers::RobotAddress;
@@ -73,8 +73,7 @@ struct SummaryElements {
 const SPACING: usize = 3;
 const BATTERY_CHARGE_FULL: f32 = 0.95;
 const BATTERY_CHARGE_WARN: f32 = 0.7;
-const CHARGING_ICON: &str = "󱐋";
-const DISCHARGING_ICON: &str = "󰁽";
+const BATTERY_ICON: &str = "󰁽";
 const OS_ICON: &str = "󱑞";
 const ALL_OK_ICON: &str = "✔";
 const UNKNOWN_CHARGE_ICON: &str = "󰁽?";
@@ -104,22 +103,19 @@ impl SummaryElements {
         self.output.push_str(&output);
     }
 
-    fn append_battery(&mut self, battery: &Option<Battery>) {
-        let Some(battery) = battery else {
+    fn append_battery(&mut self, battery_charge: Option<f32>) {
+        let Some(battery_charge) = battery_charge else {
             self.append(UNKNOWN_CHARGE_ICON, "?%", Style::new());
             return;
         };
-        let charge = (battery.charge * 100.0) as u32;
-        let is_discharging = battery.current.is_sign_negative();
-        if is_discharging {
-            let style = if battery.charge < BATTERY_CHARGE_WARN {
+        let charge = (battery_charge * 100.0) as u32;
+        if battery_charge < BATTERY_CHARGE_FULL {
+            let style = if battery_charge < BATTERY_CHARGE_WARN {
                 Style::new().red()
             } else {
                 Style::new().yellow()
             };
-            self.append(DISCHARGING_ICON, &format!("{charge}%"), style);
-        } else if battery.charge < BATTERY_CHARGE_FULL {
-            self.append(CHARGING_ICON, &format!("{charge}%"), Style::new());
+            self.append(BATTERY_ICON, &format!("{charge}%"), style);
         }
     }
 
@@ -170,7 +166,7 @@ fn print_summary(states: &AlivenessList, expected_os_version: Option<String>) {
 
         let mut output = SummaryElements::new();
 
-        output.append_battery(&state.battery);
+        output.append_battery(state.battery_charge);
         output.append_temperature(&state.temperature);
         if let Some(expected_os_version) = &expected_os_version {
             output.append_os_version(&state.os_version, expected_os_version);
@@ -208,7 +204,7 @@ fn print_verbose(states: &AlivenessList) {
             os_version,
             robot_name,
             serial_number,
-            battery,
+            battery_charge,
             network,
             temperature,
         } = state;
@@ -223,10 +219,10 @@ fn print_verbose(states: &AlivenessList) {
         let unknown = "Unknown".to_owned();
         let robot_name = robot_name.as_ref().unwrap_or(&unknown);
         let serial_number = serial_number.as_ref().unwrap_or(&unknown);
-        let battery = battery.map_or_else(
+        let battery = battery_charge.map_or_else(
             || unknown.clone(),
-            |b| {
-                let charge = (b.charge * 100.0) as u32;
+            |battery_charge| {
+                let charge = (battery_charge * 100.0) as u32;
                 format!("Charge: {charge:.0}%")
             },
         );

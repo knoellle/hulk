@@ -1,11 +1,9 @@
 use std::time::Duration;
 
-use aliveness::Battery;
 use booster::MotorState;
 use color_eyre::eyre::{eyre, Context, Result};
 use kinematics::joints::Joints;
 use log::{debug, warn};
-use robot::extract_version_number;
 use ros_z::context::ContextBuilder;
 use serde::Deserialize;
 use tokio::{fs, process::Command, sync::watch, task::JoinHandle, time::sleep};
@@ -20,7 +18,7 @@ pub struct RobotInfo {
     pub os_version: String,
     pub hostname: String,
     serial_number: Option<String>,
-    battery_receiver: watch::Receiver<Option<Battery>>,
+    battery_charge_receiver: watch::Receiver<Option<f32>>,
     temperature_receiver: watch::Receiver<Option<Vec<f32>>>,
     tasks: Vec<JoinHandle<()>>,
 }
@@ -35,11 +33,11 @@ impl RobotInfo {
             .into_string()
             .map_err(|hostname| eyre!("invalid utf8 in hostname: {hostname:?}"))?;
         let serial_number = get_serial_number().await.ok().flatten();
-        let (battery_sender, battery_receiver) = watch::channel(None);
+        let (battery_charge_sender, battery_charge_receiver) = watch::channel(None);
         let (temperature_sender, temperature_receiver) = watch::channel(None);
 
         let tasks = vec![
-            tokio::spawn(watch_battery(battery_sender)),
+            tokio::spawn(watch_battery_charge(battery_charge_sender)),
             tokio::spawn(watch_motor_temperatures(ros_namespace, temperature_sender)),
         ];
 
@@ -47,7 +45,7 @@ impl RobotInfo {
             os_version,
             hostname,
             serial_number,
-            battery_receiver,
+            battery_charge_receiver,
             temperature_receiver,
             tasks,
         })
@@ -61,8 +59,8 @@ impl RobotInfo {
         self.serial_number.clone()
     }
 
-    pub fn battery(&self) -> Option<Battery> {
-        *self.battery_receiver.borrow()
+    pub fn battery_charge(&self) -> Option<f32> {
+        *self.battery_charge_receiver.borrow()
     }
 
     pub fn temperature(&self) -> Option<Vec<f32>> {
@@ -78,9 +76,9 @@ impl Drop for RobotInfo {
     }
 }
 
-async fn watch_battery(sender: watch::Sender<Option<Battery>>) {
+async fn watch_battery_charge(sender: watch::Sender<Option<f32>>) {
     loop {
-        match watch_battery_until_disconnect(&sender).await {
+        match watch_battery_charge_until_disconnect(&sender).await {
             Ok(()) => warn!("Zenoh battery subscription ended"),
             Err(error) => warn!("failed to watch Zenoh battery state: {error:#}"),
         }
@@ -88,7 +86,7 @@ async fn watch_battery(sender: watch::Sender<Option<Battery>>) {
     }
 }
 
-async fn watch_battery_until_disconnect(sender: &watch::Sender<Option<Battery>>) -> Result<()> {
+async fn watch_battery_charge_until_disconnect(sender: &watch::Sender<Option<f32>>) -> Result<()> {
     let context = ContextBuilder::default()
         .with_mode("client")
         .with_connect_endpoints([ROS_Z_ROUTER_ENDPOINT])
@@ -109,18 +107,18 @@ async fn watch_battery_until_disconnect(sender: &watch::Sender<Option<Battery>>)
         tokio::select! {
             sample = device_gateway_sub.recv_async() => {
                 let sample = sample.map_err(|error| eyre!("failed to receive sample from {DEVICE_GATEWAY_TOPIC}: {error}"))?;
-                match decode_device_gateway_battery_payload(&sample.payload().to_bytes()) {
-                    Ok(battery) => {
-                        let _ = sender.send(Some(battery));
+                match decode_device_gateway_battery_charge(&sample.payload().to_bytes()) {
+                    Ok(charge) => {
+                        let _ = sender.send(Some(charge));
                     }
                     Err(error) => debug!("failed to decode {DEVICE_GATEWAY_TOPIC} battery payload: {error}"),
                 }
             }
             sample = battery_state_sub.recv_async() => {
                 let sample = sample.map_err(|error| eyre!("failed to receive sample from {BATTERY_STATE_TOPIC}: {error}"))?;
-                match decode_battery_state_payload(&sample.payload().to_bytes()) {
-                    Ok(battery) => {
-                        let _ = sender.send(Some(battery));
+                match decode_battery_state_charge(&sample.payload().to_bytes()) {
+                    Ok(charge) => {
+                        let _ = sender.send(Some(charge));
                     }
                     Err(error) => debug!("failed to decode {BATTERY_STATE_TOPIC} payload: {error}"),
                 }
@@ -137,89 +135,77 @@ fn normalize_charge(charge: f32) -> f32 {
     }
 }
 
-fn decode_device_gateway_battery_payload(input_bytes: &[u8]) -> Result<Battery> {
+fn decode_device_gateway_battery_charge(input_bytes: &[u8]) -> Result<f32> {
     let robot_status: RobotStatusDdsMsg = cdr::deserialize(input_bytes)
         .wrap_err("failed to deserialize rt/device_gateway payload")?;
 
     robot_status
         .battery_vec
         .into_iter()
-        .map(RobotDdsBatteryStatus::into_battery)
-        .find(is_valid_battery)
+        .map(RobotDdsBatteryStatus::charge)
+        .find(|charge| is_valid_charge(*charge))
         .ok_or_else(|| eyre!("RobotStatusDdsMsg did not contain a valid battery status"))
 }
 
-fn decode_battery_state_payload(input_bytes: &[u8]) -> Result<Battery> {
+fn decode_battery_state_charge(input_bytes: &[u8]) -> Result<f32> {
     let battery_state: BatteryState =
         cdr::deserialize(input_bytes).wrap_err("failed to deserialize rt/battery_state payload")?;
-    let battery = battery_state.into_battery();
+    let charge = battery_state.charge();
 
-    if is_valid_battery(&battery) {
-        Ok(battery)
+    if is_valid_charge(charge) {
+        Ok(charge)
     } else {
         Err(eyre!("BatteryState did not contain a valid charge"))
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct RobotStatusDdsMsg {
-    joint_vec: Vec<RobotDdsJointStatus>,
-    imu_vec: Vec<RobotDdsImuStatus>,
+    _joint_vec: Vec<RobotDdsJointStatus>,
+    _imu_vec: Vec<RobotDdsImuStatus>,
     battery_vec: Vec<RobotDdsBatteryStatus>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct RobotDdsJointStatus {
-    name: String,
-    mode: i32,
-    is_enable: bool,
-    status_code: i32,
-    error_code: i32,
-    status_level: i32,
-    temperature: i32,
+    _name: String,
+    _mode: i32,
+    _is_enable: bool,
+    _status_code: i32,
+    _error_code: i32,
+    _status_level: i32,
+    _temperature: i32,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct RobotDdsImuStatus {
-    name: String,
-    status_code: i32,
-    is_enable: bool,
-    status_level: i32,
+    _name: String,
+    _status_code: i32,
+    _is_enable: bool,
+    _status_level: i32,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct RobotDdsBatteryStatus {
-    name: String,
-    temperature: f32,
+    _name: String,
+    _temperature: f32,
     soc: f32,
-    voltage: f32,
+    _voltage: f32,
     status_code: i32,
     status_level: i32,
 }
 
 impl RobotDdsBatteryStatus {
-    fn into_battery(self) -> Battery {
+    fn charge(self) -> f32 {
         debug!(
             "Zenoh device_gateway battery candidate: charge={}, status_code={}, status_level={}",
             self.soc, self.status_code, self.status_level,
         );
 
-        Battery {
-            charge: normalize_charge(self.soc),
-            current: 0.0,
-            temperature: 0.0,
-            voltage: 0.0,
-            health: self.status_level,
-            status_code: self.status_code,
-        }
+        normalize_charge(self.soc)
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct BatteryState {
     voltage: f32,
@@ -229,25 +215,31 @@ struct BatteryState {
 }
 
 impl BatteryState {
-    fn into_battery(self) -> Battery {
+    fn charge(self) -> f32 {
         debug!(
             "Zenoh battery_state candidate: charge={}, current={}, voltage={}, average_voltage={}",
             self.soc, self.current, self.voltage, self.average_voltage,
         );
 
-        Battery {
-            charge: normalize_charge(self.soc),
-            current: 0.0,
-            temperature: 0.0,
-            voltage: 0.0,
-            health: 0,
-            status_code: 0,
-        }
+        normalize_charge(self.soc)
     }
 }
 
-fn is_valid_battery(battery: &Battery) -> bool {
-    battery.charge.is_finite() && (0.0..=1.0).contains(&battery.charge)
+fn is_valid_charge(charge: f32) -> bool {
+    charge.is_finite() && (0.0..=1.0).contains(&charge)
+}
+
+fn extract_version_number(input: &str) -> Option<String> {
+    input
+        .lines()
+        .filter_map(|line| line.split_once(": "))
+        .fold(None, |version, (key, value)| {
+            if key == "Version" {
+                Some(value.to_owned())
+            } else {
+                version
+            }
+        })
 }
 
 async fn get_os_version() -> Result<String> {

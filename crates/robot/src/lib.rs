@@ -579,7 +579,7 @@ impl Network {
     }
 }
 
-pub fn extract_version_number(input: &str) -> Option<String> {
+fn extract_version_number(input: &str) -> Option<String> {
     let lines = input.lines();
     let mut last_installed_version = None;
     for line in lines {

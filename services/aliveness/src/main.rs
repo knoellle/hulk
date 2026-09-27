@@ -239,7 +239,7 @@ async fn handle_beacon(
         os_version: robot_info.os_version.to_owned(),
         robot_name: robot_info.robot_name(),
         serial_number: robot_info.serial_number(),
-        battery: robot_info.battery(),
+        battery_charge: robot_info.battery_charge(),
         temperature: robot_info.temperature(),
         network: get_network().await.ok().flatten(),
     };

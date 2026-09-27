@@ -217,7 +217,6 @@ dependencies = [
  "hostname",
  "kinematics",
  "log",
- "robot",
  "ros-z",
  "serde",
  "serde_json",

@@ -260,12 +260,6 @@ async fn gammaray_robot(
         .await?;
 
     robot
-        .ssh_to_robot()?
-        .arg("sudo systemctl daemon-reload")
-        .ssh_with_log("reloading service daemon", &progress_bar)
-        .await?;
-
-    robot
         .rsync_with_robot()?
         .arg("--rsync-path=sudo rsync")
         .arg("--info=progress2")
@@ -338,12 +332,6 @@ async fn gammaray_robot(
         .arg(setup.join("hulk-runtime.container"))
         .arg(format!("{}:/etc/containers/systemd/", robot.address))
         .rsync_with_log("uploading service file", &progress_bar)
-        .await?;
-
-    robot
-        .ssh_to_robot()?
-        .arg("sudo systemctl daemon-reload")
-        .ssh_with_log("reloading service daemon", &progress_bar)
         .await?;
 
     robot
