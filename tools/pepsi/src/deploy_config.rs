@@ -83,16 +83,13 @@ impl DeployConfig {
                 assignments: self
                     .assignments_with_substitutions()?
                     .into_iter()
-                    .map(|(player_number, robot_address)| {
-                        robot_address
-                            .try_into()
-                            .map(|robot_number| RobotNumberPlayerAssignment {
-                                robot_number,
-                                player_number,
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .wrap_err("failed to convert Robot addresses to Robot numbers")?,
+                    .map(
+                        |(player_number, robot_address)| RobotNumberPlayerAssignment {
+                            robot_number: robot_address.into(),
+                            player_number,
+                        },
+                    )
+                    .collect::<Vec<_>>(),
             },
             repository,
         )
@@ -112,8 +109,8 @@ impl DeployConfig {
             .assignments
             .iter()
             .copied()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(Into::into)
+            .collect::<Vec<_>>();
         check_for_duplication(&initial_assignments)?;
 
         let mut assignments: HashMap<_, _> = self

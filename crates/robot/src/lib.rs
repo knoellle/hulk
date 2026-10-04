@@ -11,9 +11,8 @@ use std::{
 
 use color_eyre::{
     Result,
-    eyre::{self, WrapErr, bail, eyre},
+    eyre::{WrapErr, bail, eyre},
 };
-use serde::Deserialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -28,23 +27,6 @@ const BOOSTER_SSH_FLAGS: &[&str] = &[
     "-oStrictHostKeyChecking=no",
     "-oUserKnownHostsFile=/dev/null",
 ];
-
-#[derive(Debug, Deserialize, Hash, Eq, PartialEq)]
-#[serde(try_from = "String")]
-pub struct RobotNumber {
-    pub id: u8,
-}
-
-impl TryFrom<String> for RobotNumber {
-    type Error = eyre::Error;
-
-    fn try_from(value: String) -> Result<Self> {
-        let id = value
-            .parse()
-            .wrap_err_with(|| format!("failed to parse `{value}` into Robot number"))?;
-        Ok(Self { id })
-    }
-}
 
 pub struct Robot {
     pub address: Ipv4Addr,

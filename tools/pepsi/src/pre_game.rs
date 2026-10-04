@@ -6,7 +6,7 @@ use color_eyre::{
     eyre::{WrapErr, bail},
 };
 
-use argument_parsers::RobotAddress;
+use argument_parsers::{RobotAddress, RobotNumber};
 use indicatif::ProgressBar;
 use repository::Repository;
 use robot::{Network, Robot, SystemctlAction};
@@ -56,13 +56,21 @@ pub async fn pre_game(arguments: Arguments, repository: &Repository) -> Result<(
         .wrap_err("failed to read deploy config from file")?;
 
     let playing_robots = config.playing_robots()?;
-    let robots = if let Some(robots) = &arguments.pre_game.robots {
-        for robot in robots {
-            if !playing_robots.contains(robot) {
-                bail!("Robot with IP {robot} is not one of the playing Robots in the deploy.toml");
+    let robot_numbers: Vec<_> = playing_robots
+        .iter()
+        .copied()
+        .map(RobotNumber::from)
+        .collect();
+    let robots = if let Some(addresses) = &arguments.pre_game.robots {
+        for address in addresses {
+            let number = RobotNumber::from(*address);
+            if !robot_numbers.contains(&number) {
+                bail!(
+                    "Robot with IP {address} is not one of the playing Robots in the deploy.toml"
+                );
             }
         }
-        robots
+        addresses
     } else {
         &playing_robots
     };

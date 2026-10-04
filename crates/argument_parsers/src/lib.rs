@@ -143,20 +143,11 @@ impl Display for RobotNumber {
     }
 }
 
-impl TryFrom<RobotAddress> for RobotNumber {
-    type Error = Report;
-
-    fn try_from(robot_address: RobotAddress) -> Result<Self> {
-        if robot_address.ip.octets()[0] != 10
-            || (robot_address.ip.octets()[1] != 0 && robot_address.ip.octets()[1] != 1)
-            || robot_address.ip.octets()[2] != 24
-        {
-            bail!("failed to extract Robot number from IP {robot_address}");
-        }
-
-        Ok(Self {
+impl From<RobotAddress> for RobotNumber {
+    fn from(robot_address: RobotAddress) -> Self {
+        Self {
             number: robot_address.ip.octets()[3],
-        })
+        }
     }
 }
 
@@ -218,16 +209,11 @@ fn parse_assignment(input: &str) -> Result<(&str, PlayerNumber)> {
     Ok((prefix, player_number))
 }
 
-impl TryFrom<RobotAddressPlayerAssignment> for RobotNumberPlayerAssignment {
-    type Error = Report;
-
-    fn try_from(assignment: RobotAddressPlayerAssignment) -> Result<Self> {
-        Ok(Self {
-            robot_number: assignment
-                .robot_address
-                .try_into()
-                .wrap_err("failed to convert Robot address into Robot number")?,
+impl From<RobotAddressPlayerAssignment> for RobotNumberPlayerAssignment {
+    fn from(assignment: RobotAddressPlayerAssignment) -> Self {
+        Self {
+            robot_number: assignment.robot_address.into(),
             player_number: assignment.player_number,
-        })
+        }
     }
 }
